@@ -1,81 +1,91 @@
 
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
-import MainLayout from "./layouts/MainLayout";
-import AdminLayout from "./layouts/AdminLayout";
-import AuthLayout from "./layouts/AuthLayout";
-import LoginPage from "./pages/auth/Login";
-import RegisterPage from "./pages/auth/Register";
-import AdminLoginPage from "./pages/admin/AdminLogin";
-import AdminDashboardPage from "./pages/admin/AdminDashboard";
-import AdminUsersPage from "./pages/admin/AdminUsers";
-import DashboardPage from "./pages/Dashboard";
-import ProductsPage from "./pages/Products";
-import SparesPage from "./pages/Spares";
-import QuotationsPage from "./pages/Quotations";
-import CreateQuotationPage from "./pages/CreateQuotation";
-import QuotationDetailPage from "./pages/QuotationDetail";
-import ProtectedRoute from "./components/ProtectedRoute";
-import NotFound from "./pages/NotFound";
+import { Toaster } from "sonner";
+import { ThemeProvider } from "@/components/ui/theme-provider";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-  },
-});
+// Layouts
+import MainLayout from "@/layouts/MainLayout";
+import AuthLayout from "@/layouts/AuthLayout";
+import AdminLayout from "@/layouts/AdminLayout";
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            {/* Auth Routes */}
-            <Route element={<AuthLayout />}>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-            </Route>
+// Pages
+import IndexPage from "@/pages/Index";
+import DashboardPage from "@/pages/Dashboard";
+import ProductsPage from "@/pages/Products";
+import SparesPage from "@/pages/Spares";
+import QuotationsPage from "@/pages/Quotations";
+import QuotationDetailPage from "@/pages/QuotationDetail";
+import CreateQuotationPage from "@/pages/CreateQuotation";
+import NotFoundPage from "@/pages/NotFound";
 
-            {/* Admin Routes */}
-            <Route path="/admin">
-              <Route index element={<AdminLoginPage />} />
-              <Route element={<ProtectedRoute requiredRole="admin" />}>
-                <Route element={<AdminLayout />}>
-                  <Route path="dashboard" element={<AdminDashboardPage />} />
-                  <Route path="users" element={<AdminUsersPage />} />
-                </Route>
+// Auth Pages
+import LoginPage from "@/pages/auth/Login";
+import RegisterPage from "@/pages/auth/Register";
+
+// Admin Pages
+import AdminLoginPage from "@/pages/admin/AdminLogin";
+import AdminDashboardPage from "@/pages/admin/AdminDashboard";
+import AdminUsersPage from "@/pages/admin/AdminUsers";
+import AdminProductsPage from "@/pages/admin/AdminProducts";
+import AdminSparesPage from "@/pages/admin/AdminSpares";
+import AdminQuotationsPage from "@/pages/admin/AdminQuotations";
+import AdminCustomersPage from "@/pages/admin/AdminCustomers";
+
+// Auth Provider
+import { AuthProvider } from "@/context/AuthContext";
+
+// Create a client
+const queryClient = new QueryClient();
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider defaultTheme="light" storageKey="theme">
+        <AuthProvider>
+          <Router>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<IndexPage />} />
+              
+              {/* Auth routes */}
+              <Route element={<AuthLayout />}>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/admin/login" element={<AdminLoginPage />} />
               </Route>
-            </Route>
-
-            {/* Main App Routes */}
-            <Route element={<ProtectedRoute requiredRole="user" />}>
-              <Route element={<MainLayout />}>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              
+              {/* Protected routes */}
+              <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/spares" element={<SparesPage />} />
                 <Route path="/quotations" element={<QuotationsPage />} />
-                <Route path="/quotations/new" element={<CreateQuotationPage />} />
                 <Route path="/quotations/:id" element={<QuotationDetailPage />} />
+                <Route path="/quotations/new" element={<CreateQuotationPage />} />
               </Route>
-            </Route>
-
-            {/* 404 Route */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+              
+              {/* Admin routes */}
+              <Route element={<ProtectedRoute allowedRoles={["admin"]}><AdminLayout /></ProtectedRoute>}>
+                <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+                <Route path="/admin/users" element={<AdminUsersPage />} />
+                <Route path="/admin/products" element={<AdminProductsPage />} />
+                <Route path="/admin/spares" element={<AdminSparesPage />} />
+                <Route path="/admin/quotations" element={<AdminQuotationsPage />} />
+                <Route path="/admin/customers" element={<AdminCustomersPage />} />
+              </Route>
+              
+              {/* Fallback routes */}
+              <Route path="/404" element={<NotFoundPage />} />
+              <Route path="*" element={<Navigate to="/404" replace />} />
+            </Routes>
+          </Router>
+          <Toaster position="top-right" richColors closeButton />
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+}
 
 export default App;

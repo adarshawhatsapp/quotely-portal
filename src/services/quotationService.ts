@@ -6,11 +6,15 @@ export interface QuoteItem {
   id: string;
   name: string;
   modelNumber: string;
+  area: string;
   quantity: number;
   price: number;
   discountedPrice: number;
   customization: string;
   total: number;
+  image?: string | null;
+  type: 'product' | 'spare';
+  parentProductId?: string | null; // For spare parts that are attached to a product
 }
 
 // Types for quotation
@@ -21,6 +25,7 @@ export interface Quotation {
   customer_email: string | null;
   customer_phone: string | null;
   customer_address: string | null;
+  customer_id: string | null;
   items: QuoteItem[];
   subtotal: number;
   gst: number;
@@ -28,14 +33,25 @@ export interface Quotation {
   status: 'Pending' | 'Approved' | 'Rejected';
   user_id: string;
   created_at: string;
+  company_details: CompanyDetails;
 }
 
 // Types for customer info
 export interface CustomerInfo {
+  id?: string | null;
   name: string;
   email: string;
   phone: string;
   address: string;
+}
+
+// Types for company details
+export interface CompanyDetails {
+  name: string;
+  logo?: string;
+  bank_name: string;
+  account_no: string;
+  ifsc_code: string;
 }
 
 // Get all quotations
@@ -58,13 +74,25 @@ export const getQuotationById = async (id: string): Promise<Quotation> => {
     .from('quotations')
     .select('*')
     .eq('id', id)
-    .single();
+    .maybeSingle();
     
   if (error) {
     throw error;
   }
   
+  if (!data) {
+    throw new Error("Quotation not found");
+  }
+  
   return data;
+};
+
+// Company details for all quotations
+const defaultCompanyDetails: CompanyDetails = {
+  name: "Magnific Designer Fans & Lights",
+  bank_name: "HDFC Bank",
+  account_no: "543210000012345",
+  ifsc_code: "HDFC0000123"
 };
 
 // Create new quotation
@@ -90,11 +118,13 @@ export const createQuotation = async (
       customer_email: customerInfo.email,
       customer_phone: customerInfo.phone,
       customer_address: customerInfo.address,
+      customer_id: customerInfo.id || null,
       items: items,
       subtotal: subtotal,
       gst: gst,
       total: total,
-      user_id: userId
+      user_id: userId,
+      company_details: defaultCompanyDetails
     }])
     .select()
     .single();
@@ -132,4 +162,20 @@ export const deleteQuotation = async (id: string): Promise<void> => {
   if (error) {
     throw error;
   }
+};
+
+// Get company details 
+export const getCompanyDetails = async (): Promise<CompanyDetails> => {
+  // In the future, this could be fetched from a settings table
+  return defaultCompanyDetails;
+};
+
+// Calculate GST for a given subtotal
+export const calculateGST = (subtotal: number): number => {
+  return subtotal * 0.18; // 18% GST
+};
+
+// Calculate total from subtotal and GST
+export const calculateTotal = (subtotal: number, gst: number): number => {
+  return subtotal + gst;
 };

@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { Outlet, useLocation, Link } from "react-router-dom";
+import { Outlet, useLocation, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { 
   LayoutDashboard, 
@@ -10,7 +10,10 @@ import {
   X,
   User,
   ChevronDown,
-  ArrowLeft
+  ArrowLeft,
+  Package,
+  Wrench,
+  FileText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -26,6 +29,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 const AdminLayout = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
 
@@ -37,9 +41,16 @@ const AdminLayout = () => {
   const navigation = [
     { name: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
     { name: "Users", path: "/admin/users", icon: Users },
+    { name: "Products", path: "/admin/products", icon: Package },
+    { name: "Spare Parts", path: "/admin/spares", icon: Wrench },
+    { name: "Quotations", path: "/admin/quotations", icon: FileText },
   ];
 
   const isActive = (path: string) => location.pathname === path;
+
+  const handleNavigate = (path: string) => {
+    navigate(path);
+  };
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -152,7 +163,7 @@ const AdminLayout = () => {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Admin Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => window.location.href = '/dashboard'}>
+                <DropdownMenuItem onClick={() => handleNavigate('/dashboard')}>
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Return to App
                 </DropdownMenuItem>
