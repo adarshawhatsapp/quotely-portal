@@ -152,7 +152,7 @@ const AdminLayout = () => {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Admin Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem as={Link} to="/dashboard">
+                <DropdownMenuItem onClick={() => window.location.href = '/dashboard'}>
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Return to App
                 </DropdownMenuItem>

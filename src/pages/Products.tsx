@@ -19,7 +19,8 @@ import {
   SlidersHorizontal,
   ChevronDown,
   AlertCircle,
-  Loader2
+  Loader2,
+  Package
 } from "lucide-react";
 import { 
   DropdownMenu, 
