@@ -12,6 +12,7 @@ import LoginPage from "./pages/auth/Login";
 import RegisterPage from "./pages/auth/Register";
 import AdminLoginPage from "./pages/admin/AdminLogin";
 import AdminDashboardPage from "./pages/admin/AdminDashboard";
+import AdminUsersPage from "./pages/admin/AdminUsers";
 import DashboardPage from "./pages/Dashboard";
 import ProductsPage from "./pages/Products";
 import SparesPage from "./pages/Spares";
@@ -21,7 +22,14 @@ import QuotationDetailPage from "./pages/QuotationDetail";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -43,6 +51,7 @@ const App = () => (
               <Route element={<ProtectedRoute requiredRole="admin" />}>
                 <Route element={<AdminLayout />}>
                   <Route path="dashboard" element={<AdminDashboardPage />} />
+                  <Route path="users" element={<AdminUsersPage />} />
                 </Route>
               </Route>
             </Route>

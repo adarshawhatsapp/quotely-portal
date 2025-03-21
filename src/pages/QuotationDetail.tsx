@@ -1,6 +1,7 @@
 
 import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Card, 
   CardContent, 
@@ -18,74 +19,22 @@ import {
   Check,
   X,
   ArrowLeft,
+  AlertCircle,
+  Loader2
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-
-// Mock quotation data (would fetch from API in real app)
-const mockQuotation = {
-  id: "Q-2023-001",
-  customerName: "Acme Corporation",
-  customerEmail: "procurement@acmecorp.com",
-  customerPhone: "+91 98765 43210",
-  customerAddress: "123 Business Park, Mumbai, Maharashtra, 400001",
-  subtotal: 124500,
-  gst: 22410,
-  total: 146910,
-  status: "Approved",
-  createdAt: "2023-06-10T10:30:00",
-  products: [
-    {
-      id: "1",
-      name: "Crystal Chandelier",
-      modelNumber: "CC-2023-01",
-      quantity: 1,
-      price: 45000,
-      discountedPrice: 39999,
-      customization: "Gold finish",
-      total: 39999
-    },
-    {
-      id: "2",
-      name: "Modern Pendant Light",
-      modelNumber: "PL-2023-42",
-      quantity: 3,
-      price: 12500,
-      discountedPrice: 10999,
-      customization: "Black",
-      total: 32997
-    },
-    {
-      id: "4",
-      name: "LED Ceiling Fixture",
-      modelNumber: "LC-2023-08",
-      quantity: 2,
-      price: 18500,
-      discountedPrice: 16499,
-      customization: "Dimmable",
-      total: 32998
-    },
-    {
-      id: "SP002",
-      name: "LED Bulb (Warm White)",
-      modelNumber: "Spare Parts",
-      quantity: 50,
-      price: 350,
-      discountedPrice: 350,
-      customization: "",
-      total: 17500
-    },
-    {
-      id: "SP007",
-      name: "Dimmer Switch",
-      modelNumber: "Spare Parts",
-      quantity: 2,
-      price: 750,
-      discountedPrice: 503,
-      customization: "",
-      total: 1006
-    }
-  ]
-};
+import { getQuotationById, updateQuotationStatus } from "@/services/quotationService";
+import { useAuth } from "@/context/AuthContext";
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -102,16 +51,50 @@ const getStatusColor = (status: string) => {
 
 const QuotationDetailPage = () => {
   const { id } = useParams<{ id: string }>();
-  // In a real app, you'd fetch the quotation data using the ID
-  const [quotation, setQuotation] = useState(mockQuotation);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
+  const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+
+  // Fetch quotation
+  const { data: quotation, isLoading, error } = useQuery({
+    queryKey: ['quotation', id],
+    queryFn: () => getQuotationById(id || ''),
+    enabled: !!id,
+  });
+
+  // Update status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string, status: 'Approved' | 'Pending' | 'Rejected' }) => 
+      updateQuotationStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotation', id] });
+      queryClient.invalidateQueries({ queryKey: ['quotations'] });
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to update status: ${error.message}`);
+    }
+  });
 
   const handleApprove = () => {
-    setQuotation({...quotation, status: "Approved"});
+    if (!id) return;
+    updateStatusMutation.mutate({ 
+      id, 
+      status: 'Approved' 
+    });
+    setIsApproveDialogOpen(false);
     toast.success("Quotation has been approved");
   };
 
   const handleReject = () => {
-    setQuotation({...quotation, status: "Rejected"});
+    if (!id) return;
+    updateStatusMutation.mutate({ 
+      id, 
+      status: 'Rejected' 
+    });
+    setIsRejectDialogOpen(false);
     toast.error("Quotation has been rejected");
   };
 
@@ -128,6 +111,38 @@ const QuotationDetailPage = () => {
     window.print();
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2 text-muted-foreground">Loading quotation...</span>
+      </div>
+    );
+  }
+
+  if (error || !quotation) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24">
+        <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+        <h3 className="text-xl font-semibold mb-2">Error Loading Quotation</h3>
+        <p className="text-gray-500 mb-4">
+          {(error as any)?.message || "Failed to load quotation details. It may have been deleted or you don't have permission to view it."}
+        </p>
+        <div className="flex gap-4">
+          <Button
+            variant="outline"
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['quotation', id] })}
+          >
+            Retry
+          </Button>
+          <Button onClick={() => navigate('/quotations')}>
+            Back to Quotations
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Header */}
@@ -139,19 +154,19 @@ const QuotationDetailPage = () => {
             </Button>
           </Link>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-            Quotation {id}
+            {quotation.quote_number}
           </h1>
           <Badge className={getStatusColor(quotation.status)}>
             {quotation.status}
           </Badge>
         </div>
         <div className="flex items-center gap-2">
-          {quotation.status === "Pending" && (
+          {quotation.status === "Pending" && user?.role === 'admin' && (
             <>
               <Button 
                 variant="outline" 
                 className="gap-1 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
-                onClick={handleReject}
+                onClick={() => setIsRejectDialogOpen(true)}
               >
                 <X className="h-4 w-4" />
                 <span>Reject</span>
@@ -159,7 +174,7 @@ const QuotationDetailPage = () => {
               <Button 
                 variant="outline" 
                 className="gap-1 text-green-500 border-green-200 hover:bg-green-50 hover:text-green-600"
-                onClick={handleApprove}
+                onClick={() => setIsApproveDialogOpen(true)}
               >
                 <Check className="h-4 w-4" />
                 <span>Approve</span>
@@ -181,6 +196,48 @@ const QuotationDetailPage = () => {
         </div>
       </div>
 
+      {/* Approve Dialog */}
+      <AlertDialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approve Quotation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to approve this quotation? This will change its status to "Approved".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleApprove}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Approve
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reject Dialog */}
+      <AlertDialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject Quotation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to reject this quotation? This will change its status to "Rejected".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleReject}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Reject
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="grid md:grid-cols-3 gap-6">
         {/* Customer Information */}
         <Card className="md:col-span-2">
@@ -196,15 +253,15 @@ const QuotationDetailPage = () => {
             <div className="grid sm:grid-cols-2 gap-6">
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">Customer Details</h4>
-                <div className="font-medium">{quotation.customerName}</div>
+                <div className="font-medium">{quotation.customer_name}</div>
                 <div className="text-sm mt-1">
-                  <div>{quotation.customerEmail}</div>
-                  <div>{quotation.customerPhone}</div>
+                  {quotation.customer_email && <div>{quotation.customer_email}</div>}
+                  {quotation.customer_phone && <div>{quotation.customer_phone}</div>}
                 </div>
               </div>
               <div>
                 <h4 className="text-sm font-medium text-muted-foreground mb-1">Shipping Address</h4>
-                <div className="text-sm whitespace-pre-line">{quotation.customerAddress}</div>
+                <div className="text-sm whitespace-pre-line">{quotation.customer_address || "No address provided"}</div>
               </div>
             </div>
           </CardContent>
@@ -219,20 +276,20 @@ const QuotationDetailPage = () => {
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-1">Date Created</h4>
               <div className="font-medium">
-                {new Date(quotation.createdAt).toLocaleDateString('en-US', {
+                {new Date(quotation.created_at).toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric'
                 })}
               </div>
               <div className="text-sm text-muted-foreground">
-                {new Date(quotation.createdAt).toLocaleTimeString()}
+                {new Date(quotation.created_at).toLocaleTimeString()}
               </div>
             </div>
 
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-1">Items</h4>
-              <div className="font-medium">{quotation.products.length} products</div>
+              <div className="font-medium">{quotation.items.length} products</div>
             </div>
 
             <div>
@@ -277,8 +334,8 @@ const QuotationDetailPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {quotation.products.map((product, index) => (
-                  <tr key={product.id} className="border-b last:border-0">
+                {quotation.items.map((product, index) => (
+                  <tr key={`${product.id}-${index}`} className="border-b last:border-0">
                     <td className="py-3 align-top text-sm">{index + 1}</td>
                     <td className="py-3 align-top font-medium">{product.name}</td>
                     <td className="py-3 align-top text-sm">{product.modelNumber}</td>

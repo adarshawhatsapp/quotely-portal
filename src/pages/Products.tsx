@@ -1,5 +1,6 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Card, 
   CardContent, 
@@ -16,7 +17,9 @@ import {
   Edit, 
   Trash,
   SlidersHorizontal,
-  ChevronDown
+  ChevronDown,
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import { 
   DropdownMenu, 
@@ -37,80 +40,91 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-
-// Mock products data
-const mockProducts = [
-  {
-    id: "1",
-    name: "Crystal Chandelier",
-    modelNumber: "CC-2023-01",
-    category: "Chandelier",
-    price: 45000,
-    discountedPrice: 39999,
-    image: "https://images.unsplash.com/photo-1543161949-1f9193812ce8?q=80&w=200&h=200&auto=format&fit=crop",
-    description: "Luxury crystal chandelier with intricate design, perfect for large halls and reception areas.",
-    customizations: ["Gold finish", "Silver finish", "Bronze finish"]
-  },
-  {
-    id: "2",
-    name: "Modern Pendant Light",
-    modelNumber: "PL-2023-42",
-    category: "Pendant",
-    price: 12500,
-    discountedPrice: 10999,
-    image: "https://images.unsplash.com/photo-1540932239986-30128078f3c5?q=80&w=200&h=200&auto=format&fit=crop",
-    description: "Sleek modern pendant light with adjustable height and brightness.",
-    customizations: ["Black", "White", "Copper"]
-  },
-  {
-    id: "3",
-    name: "Wall Sconce Pair",
-    modelNumber: "WS-2023-15",
-    category: "Wall Light",
-    price: 8500,
-    discountedPrice: 7999,
-    image: "https://images.unsplash.com/photo-1507465692364-fad85760a698?q=80&w=200&h=200&auto=format&fit=crop",
-    description: "Elegant wall sconces sold as a pair, with warm ambient lighting effect.",
-    customizations: ["Chrome", "Matte Black", "Brushed Nickel"]
-  },
-  {
-    id: "4",
-    name: "LED Ceiling Fixture",
-    modelNumber: "LC-2023-08",
-    category: "Ceiling",
-    price: 18500,
-    discountedPrice: 16499,
-    image: "https://images.unsplash.com/photo-1565814329452-e1efa11c5b89?q=80&w=200&h=200&auto=format&fit=crop",
-    description: "Energy-efficient LED ceiling fixture with color temperature adjustment.",
-    customizations: ["Round", "Square", "Dimmable"]
-  }
-];
+import { toast } from "sonner";
+import { getProducts, createProduct, updateProduct, deleteProduct } from "@/services/productService";
+import { useAuth } from "@/context/AuthContext";
 
 const ProductsPage = () => {
-  const [products, setProducts] = useState(mockProducts);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const queryClient = useQueryClient();
+  
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
+  const [isEditProductDialogOpen, setIsEditProductDialogOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [sortOrder, setSortOrder] = useState("name-asc");
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
   
-  // Product form state
-  const [newProduct, setNewProduct] = useState({
+  // Form state
+  const [productForm, setProductForm] = useState({
     name: "",
-    modelNumber: "",
+    model_number: "",
     category: "",
     price: "",
-    discountedPrice: "",
+    discounted_price: "",
     image: "",
     description: "",
     customizations: ""
   });
 
-  const categories = ["All", "Chandelier", "Pendant", "Wall Light", "Ceiling", "Table Lamp", "Floor Lamp"];
+  // Fetch products
+  const { data: products = [], isLoading, error } = useQuery({
+    queryKey: ['products'],
+    queryFn: getProducts,
+  });
+
+  // Create product mutation
+  const createProductMutation = useMutation({
+    mutationFn: createProduct,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success("Product created successfully");
+      setIsAddProductDialogOpen(false);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to create product: ${error.message}`);
+    }
+  });
+
+  // Update product mutation
+  const updateProductMutation = useMutation({
+    mutationFn: ({ id, product }: { id: string, product: any }) => 
+      updateProduct(id, product),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success("Product updated successfully");
+      setIsEditProductDialogOpen(false);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to update product: ${error.message}`);
+    }
+  });
+
+  // Delete product mutation
+  const deleteProductMutation = useMutation({
+    mutationFn: deleteProduct,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success("Product deleted successfully");
+      setIsDeleteConfirmOpen(false);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to delete product: ${error.message}`);
+    }
+  });
+
+  // Get unique categories
+  const categories = ["All", ...new Set(products.map(product => product.category))];
 
   // Filter products based on search query and category
   const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                        product.modelNumber.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = 
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      product.model_number.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = categoryFilter === "All" || product.category === categoryFilter;
     return matchesSearch && matchesCategory;
   });
@@ -122,47 +136,113 @@ const ProductsPage = () => {
     if (field === "name") {
       return direction === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
     } else if (field === "price") {
-      return direction === "asc" 
-        ? a.discountedPrice - b.discountedPrice 
-        : b.discountedPrice - a.discountedPrice;
+      const aPrice = a.discounted_price || a.price;
+      const bPrice = b.discounted_price || b.price;
+      return direction === "asc" ? aPrice - bPrice : bPrice - aPrice;
     }
     return 0;
   });
 
+  const resetForm = () => {
+    setProductForm({
+      name: "",
+      model_number: "",
+      category: "",
+      price: "",
+      discounted_price: "",
+      image: "",
+      description: "",
+      customizations: ""
+    });
+    setSelectedProduct(null);
+  };
+
+  const handleOpenEditDialog = (product: any) => {
+    setSelectedProduct(product);
+    setProductForm({
+      name: product.name,
+      model_number: product.model_number,
+      category: product.category,
+      price: product.price.toString(),
+      discounted_price: product.discounted_price ? product.discounted_price.toString() : "",
+      image: product.image || "",
+      description: product.description || "",
+      customizations: (product.customizations || []).join(", ")
+    });
+    setIsEditProductDialogOpen(true);
+  };
+
+  const handleOpenDeleteDialog = (product: any) => {
+    setSelectedProduct(product);
+    setIsDeleteConfirmOpen(true);
+  };
+
   const handleAddProduct = () => {
-    const customizationsArray = newProduct.customizations
+    const customizationsArray = productForm.customizations
       .split(",")
       .map(item => item.trim())
       .filter(Boolean);
     
     const productToAdd = {
-      id: `${products.length + 1}`,
-      name: newProduct.name,
-      modelNumber: newProduct.modelNumber,
-      category: newProduct.category,
-      price: parseFloat(newProduct.price),
-      discountedPrice: parseFloat(newProduct.discountedPrice) || parseFloat(newProduct.price),
-      image: newProduct.image || "https://via.placeholder.com/200",
-      description: newProduct.description,
+      name: productForm.name,
+      model_number: productForm.model_number,
+      category: productForm.category,
+      price: parseFloat(productForm.price),
+      discounted_price: productForm.discounted_price ? parseFloat(productForm.discounted_price) : null,
+      image: productForm.image || null,
+      description: productForm.description || null,
       customizations: customizationsArray
     };
     
-    setProducts([...products, productToAdd]);
-    
-    // Reset form
-    setNewProduct({
-      name: "",
-      modelNumber: "",
-      category: "",
-      price: "",
-      discountedPrice: "",
-      image: "",
-      description: "",
-      customizations: ""
-    });
-    
-    setIsAddProductDialogOpen(false);
+    createProductMutation.mutate(productToAdd);
   };
+
+  const handleUpdateProduct = () => {
+    if (!selectedProduct) return;
+    
+    const customizationsArray = productForm.customizations
+      .split(",")
+      .map(item => item.trim())
+      .filter(Boolean);
+    
+    const productToUpdate = {
+      name: productForm.name,
+      model_number: productForm.model_number,
+      category: productForm.category,
+      price: parseFloat(productForm.price),
+      discounted_price: productForm.discounted_price ? parseFloat(productForm.discounted_price) : null,
+      image: productForm.image || null,
+      description: productForm.description || null,
+      customizations: customizationsArray
+    };
+    
+    updateProductMutation.mutate({ 
+      id: selectedProduct.id, 
+      product: productToUpdate 
+    });
+  };
+
+  const handleDeleteProduct = () => {
+    if (!selectedProduct) return;
+    deleteProductMutation.mutate(selectedProduct.id);
+  };
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96">
+        <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+        <h3 className="text-xl font-semibold mb-2">Error Loading Products</h3>
+        <p className="text-gray-500 mb-4">
+          {(error as any).message || "Failed to load products. Please try again."}
+        </p>
+        <Button
+          onClick={() => queryClient.invalidateQueries({ queryKey: ['products'] })}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -173,143 +253,320 @@ const ProductsPage = () => {
             Manage your product catalog for quotations
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Dialog open={isAddProductDialogOpen} onOpenChange={setIsAddProductDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                <span>Add Product</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[550px]">
-              <DialogHeader>
-                <DialogTitle>Add New Product</DialogTitle>
-                <DialogDescription>
-                  Enter the details of the new product below.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+        {isAdmin && (
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Dialog open={isAddProductDialogOpen} onOpenChange={setIsAddProductDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  <span>Add Product</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[550px]">
+                <DialogHeader>
+                  <DialogTitle>Add New Product</DialogTitle>
+                  <DialogDescription>
+                    Enter the details of the new product below.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Product Name *</Label>
+                      <Input 
+                        id="name" 
+                        value={productForm.name}
+                        onChange={(e) => setProductForm({...productForm, name: e.target.value})}
+                        placeholder="Crystal Chandelier" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="modelNumber">Model Number *</Label>
+                      <Input 
+                        id="modelNumber" 
+                        value={productForm.model_number}
+                        onChange={(e) => setProductForm({...productForm, model_number: e.target.value})}
+                        placeholder="CC-2023-01" 
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="category">Category *</Label>
+                      <Input 
+                        id="category" 
+                        value={productForm.category}
+                        onChange={(e) => setProductForm({...productForm, category: e.target.value})}
+                        placeholder="Chandelier" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="image">Image URL</Label>
+                      <Input 
+                        id="image" 
+                        value={productForm.image}
+                        onChange={(e) => setProductForm({...productForm, image: e.target.value})}
+                        placeholder="https://example.com/image.jpg" 
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="price">Price (₹) *</Label>
+                      <Input 
+                        id="price" 
+                        type="number"
+                        value={productForm.price}
+                        onChange={(e) => setProductForm({...productForm, price: e.target.value})}
+                        placeholder="45000" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="discountedPrice">Discounted Price (₹)</Label>
+                      <Input 
+                        id="discountedPrice" 
+                        type="number"
+                        value={productForm.discounted_price}
+                        onChange={(e) => setProductForm({...productForm, discounted_price: e.target.value})}
+                        placeholder="39999" 
+                      />
+                    </div>
+                  </div>
                   <div className="space-y-2">
-                    <Label htmlFor="name">Product Name</Label>
-                    <Input 
-                      id="name" 
-                      value={newProduct.name}
-                      onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
-                      placeholder="Crystal Chandelier" 
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea 
+                      id="description"
+                      value={productForm.description}
+                      onChange={(e) => setProductForm({...productForm, description: e.target.value})}
+                      placeholder="Luxury crystal chandelier with intricate design..." 
+                      rows={3}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="modelNumber">Model Number</Label>
+                    <Label htmlFor="customizations">Customizations (comma separated)</Label>
                     <Input 
-                      id="modelNumber" 
-                      value={newProduct.modelNumber}
-                      onChange={(e) => setNewProduct({...newProduct, modelNumber: e.target.value})}
-                      placeholder="CC-2023-01" 
+                      id="customizations" 
+                      value={productForm.customizations}
+                      onChange={(e) => setProductForm({...productForm, customizations: e.target.value})}
+                      placeholder="Gold finish, Silver finish, Bronze finish" 
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="category">Category</Label>
-                    <Input 
-                      id="category" 
-                      value={newProduct.category}
-                      onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
-                      placeholder="Chandelier" 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="image">Image URL</Label>
-                    <Input 
-                      id="image" 
-                      value={newProduct.image}
-                      onChange={(e) => setNewProduct({...newProduct, image: e.target.value})}
-                      placeholder="https://example.com/image.jpg" 
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="price">Price (₹)</Label>
-                    <Input 
-                      id="price" 
-                      type="number"
-                      value={newProduct.price}
-                      onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
-                      placeholder="45000" 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="discountedPrice">Discounted Price (₹)</Label>
-                    <Input 
-                      id="discountedPrice" 
-                      type="number"
-                      value={newProduct.discountedPrice}
-                      onChange={(e) => setNewProduct({...newProduct, discountedPrice: e.target.value})}
-                      placeholder="39999" 
-                    />
-                  </div>
-                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => {
+                    resetForm();
+                    setIsAddProductDialogOpen(false);
+                  }}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="button" 
+                    onClick={handleAddProduct}
+                    disabled={createProductMutation.isPending || !productForm.name || !productForm.model_number || !productForm.category || !productForm.price}
+                  >
+                    {createProductMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Adding...
+                      </>
+                    ) : "Add Product"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
+      </div>
+
+      {/* Edit Product Dialog */}
+      {isAdmin && (
+        <Dialog open={isEditProductDialogOpen} onOpenChange={setIsEditProductDialogOpen}>
+          <DialogContent className="sm:max-w-[550px]">
+            <DialogHeader>
+              <DialogTitle>Edit Product</DialogTitle>
+              <DialogDescription>
+                Update the details of the product below.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea 
-                    id="description" 
-                    value={newProduct.description}
-                    onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
-                    placeholder="Luxury crystal chandelier with intricate design..." 
+                  <Label htmlFor="edit-name">Product Name *</Label>
+                  <Input 
+                    id="edit-name" 
+                    value={productForm.name}
+                    onChange={(e) => setProductForm({...productForm, name: e.target.value})}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="customizations">
-                    Customizations (comma separated)
-                  </Label>
+                  <Label htmlFor="edit-modelNumber">Model Number *</Label>
                   <Input 
-                    id="customizations" 
-                    value={newProduct.customizations}
-                    onChange={(e) => setNewProduct({...newProduct, customizations: e.target.value})}
-                    placeholder="Gold finish, Silver finish, Bronze finish" 
+                    id="edit-modelNumber" 
+                    value={productForm.model_number}
+                    onChange={(e) => setProductForm({...productForm, model_number: e.target.value})}
                   />
                 </div>
               </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsAddProductDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="button" onClick={handleAddProduct}>
-                  Add Product
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-category">Category *</Label>
+                  <Input 
+                    id="edit-category" 
+                    value={productForm.category}
+                    onChange={(e) => setProductForm({...productForm, category: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-image">Image URL</Label>
+                  <Input 
+                    id="edit-image" 
+                    value={productForm.image}
+                    onChange={(e) => setProductForm({...productForm, image: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-price">Price (₹) *</Label>
+                  <Input 
+                    id="edit-price" 
+                    type="number"
+                    value={productForm.price}
+                    onChange={(e) => setProductForm({...productForm, price: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-discountedPrice">Discounted Price (₹)</Label>
+                  <Input 
+                    id="edit-discountedPrice" 
+                    type="number"
+                    value={productForm.discounted_price}
+                    onChange={(e) => setProductForm({...productForm, discounted_price: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea 
+                  id="edit-description"
+                  value={productForm.description}
+                  onChange={(e) => setProductForm({...productForm, description: e.target.value})}
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-customizations">Customizations (comma separated)</Label>
+                <Input 
+                  id="edit-customizations" 
+                  value={productForm.customizations}
+                  onChange={(e) => setProductForm({...productForm, customizations: e.target.value})}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => {
+                resetForm();
+                setIsEditProductDialogOpen(false);
+              }}>
+                Cancel
+              </Button>
+              <Button 
+                type="button" 
+                onClick={handleUpdateProduct}
+                disabled={updateProductMutation.isPending || !productForm.name || !productForm.model_number || !productForm.category || !productForm.price}
+              >
+                {updateProductMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : "Update Product"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {isAdmin && (
+        <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Confirm Deletion</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this product? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              {selectedProduct && (
+                <div className="flex items-center gap-3 p-3 border rounded-md">
+                  <div className="h-12 w-12 rounded bg-gray-100 overflow-hidden flex-shrink-0">
+                    {selectedProduct.image ? (
+                      <img 
+                        src={selectedProduct.image} 
+                        alt={selectedProduct.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                        <Package className="h-6 w-6 text-primary/60" />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="font-medium">{selectedProduct.name}</div>
+                    <div className="text-xs text-muted-foreground">{selectedProduct.model_number}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsDeleteConfirmOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                type="button" 
+                variant="destructive"
+                onClick={handleDeleteProduct}
+                disabled={deleteProductMutation.isPending}
+              >
+                {deleteProductMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : "Delete Product"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Filters and Search */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center justify-between">
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search products..."
-              className="pl-8"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="relative w-full md:w-64">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search products..."
+            className="pl-8"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        
+        <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="flex items-center gap-2">
                 <Filter className="h-4 w-4" />
-                <span>{categoryFilter === "All" ? "All Categories" : categoryFilter}</span>
+                <span>Category</span>
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuContent align="end" className="w-48">
               {categories.map((category) => (
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   key={category}
                   className={categoryFilter === category ? "bg-muted" : ""}
                   onClick={() => setCategoryFilter(category)}
@@ -319,9 +576,7 @@ const ProductsPage = () => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-        
-        <div className="flex items-center gap-2">
+          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="flex items-center gap-2">
@@ -361,74 +616,101 @@ const ProductsPage = () => {
         </div>
       </div>
 
-      {/* Products Grid */}
-      {sortedProducts.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {/* Products List */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-2 text-muted-foreground">Loading products...</span>
+        </div>
+      ) : sortedProducts.length > 0 ? (
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {sortedProducts.map((product) => (
             <Card key={product.id} className="overflow-hidden hover-lift">
-              <div className="aspect-square relative overflow-hidden bg-muted">
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="object-cover w-full h-full transition-transform duration-300 hover:scale-105"
-                  loading="lazy"
-                />
-                <div className="absolute top-2 right-2">
-                  <Badge variant="secondary" className="bg-white/80 text-primary font-medium backdrop-blur-xs">
-                    {product.category}
-                  </Badge>
-                </div>
+              <div className="aspect-square bg-gray-100 relative">
+                {product.image ? (
+                  <img 
+                    src={product.image} 
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                    <Package className="h-12 w-12 text-primary/60" />
+                  </div>
+                )}
+                <Badge className="absolute top-2 right-2">
+                  {product.category}
+                </Badge>
               </div>
-              <CardHeader className="p-4 pb-0">
+              <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
                   <div>
-                    <CardTitle className="text-base">{product.name}</CardTitle>
-                    <CardDescription className="text-xs mt-1">
-                      Model: {product.modelNumber}
-                    </CardDescription>
+                    <CardTitle className="text-lg">{product.name}</CardTitle>
+                    <CardDescription>{product.model_number}</CardDescription>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <SlidersHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-40">
-                      <DropdownMenuItem>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-red-500">
-                        <Trash className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </CardHeader>
-              <CardContent className="p-4 pt-2">
-                <div className="flex items-baseline gap-2 mb-2">
-                  <span className="text-lg font-bold">₹{product.discountedPrice.toLocaleString()}</span>
-                  {product.price !== product.discountedPrice && (
-                    <span className="text-sm text-muted-foreground line-through">
-                      ₹{product.price.toLocaleString()}
-                    </span>
+                  {isAdmin && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <SlidersHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem onClick={() => handleOpenEditDialog(product)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={() => handleOpenDeleteDialog(product)}
+                          className="text-red-500 focus:text-red-500"
+                        >
+                          <Trash className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </div>
-                <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                  {product.description}
-                </p>
-                <div className="flex flex-wrap gap-1">
-                  {product.customizations.slice(0, 3).map((custom, index) => (
-                    <Badge key={index} variant="outline" className="text-xs">
-                      {custom}
-                    </Badge>
-                  ))}
-                  {product.customizations.length > 3 && (
-                    <Badge variant="outline" className="text-xs">
-                      +{product.customizations.length - 3} more
-                    </Badge>
+              </CardHeader>
+              <CardContent>
+                {product.description && (
+                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                    {product.description}
+                  </p>
+                )}
+                
+                <div className="flex items-start justify-between mt-4">
+                  <div>
+                    <div className="text-sm font-medium text-muted-foreground mb-1">Price</div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-lg font-semibold">
+                        ₹{(product.discounted_price || product.price).toLocaleString()}
+                      </span>
+                      {product.discounted_price && product.discounted_price < product.price && (
+                        <span className="text-sm text-muted-foreground line-through">
+                          ₹{product.price.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {product.customizations && product.customizations.length > 0 && (
+                    <div>
+                      <div className="text-sm font-medium text-muted-foreground mb-1">Options</div>
+                      <div className="flex flex-wrap gap-1">
+                        {product.customizations.slice(0, 2).map((option: string) => (
+                          <Badge key={option} variant="outline" className="text-xs">
+                            {option}
+                          </Badge>
+                        ))}
+                        {product.customizations.length > 2 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{product.customizations.length - 2} more
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -441,9 +723,20 @@ const ProductsPage = () => {
             <Search className="h-6 w-6 text-muted-foreground" />
           </div>
           <h3 className="text-lg font-medium">No products found</h3>
-          <p className="text-muted-foreground mt-1">
-            Try adjusting your search or filters to find what you're looking for.
+          <p className="text-muted-foreground mt-1 mb-4">
+            {searchQuery || categoryFilter !== "All" 
+              ? "Try adjusting your search or filters to find what you're looking for."
+              : "No products have been added yet."}
           </p>
+          {isAdmin && (
+            <Button 
+              className="flex items-center gap-2"
+              onClick={() => setIsAddProductDialogOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Product</span>
+            </Button>
+          )}
         </div>
       )}
     </div>

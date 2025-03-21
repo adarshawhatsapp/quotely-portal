@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Card, 
   CardContent, 
@@ -25,7 +26,9 @@ import {
   Filter,
   Calendar,
   ArrowUpDown,
-  ChevronDown
+  ChevronDown,
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 import { 
   DropdownMenu, 
@@ -35,82 +38,9 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-
-// Mock quotations data
-const mockQuotations = [
-  {
-    id: "Q-2023-001",
-    customerName: "Acme Corporation",
-    customerEmail: "procurement@acmecorp.com",
-    customerPhone: "+91 98765 43210",
-    customerAddress: "123 Business Park, Mumbai, Maharashtra, 400001",
-    subtotal: 124500,
-    gst: 22410,
-    total: 146910,
-    status: "Approved",
-    createdAt: "2023-06-10T10:30:00"
-  },
-  {
-    id: "Q-2023-002",
-    customerName: "TechSolutions Inc.",
-    customerEmail: "purchase@techsolutions.com",
-    customerPhone: "+91 87654 32109",
-    customerAddress: "456 IT Park, Bengaluru, Karnataka, 560001",
-    subtotal: 85400,
-    gst: 15372,
-    total: 100772,
-    status: "Pending",
-    createdAt: "2023-06-08T14:15:00"
-  },
-  {
-    id: "Q-2023-003",
-    customerName: "Global Enterprises",
-    customerEmail: "office@globalent.com",
-    customerPhone: "+91 76543 21098",
-    customerAddress: "789 Corporate Tower, Delhi, Delhi, 110001",
-    subtotal: 153000,
-    gst: 27540,
-    total: 180540,
-    status: "Approved",
-    createdAt: "2023-06-05T09:45:00"
-  },
-  {
-    id: "Q-2023-004",
-    customerName: "Luxury Hotels Group",
-    customerEmail: "procurement@luxuryhotels.com",
-    customerPhone: "+91 65432 10987",
-    customerAddress: "321 Hospitality Avenue, Chennai, Tamil Nadu, 600001",
-    subtotal: 350000,
-    gst: 63000,
-    total: 413000,
-    status: "Approved",
-    createdAt: "2023-05-30T11:20:00"
-  },
-  {
-    id: "Q-2023-005",
-    customerName: "Metro Developers",
-    customerEmail: "projects@metrodevelopers.com",
-    customerPhone: "+91 54321 09876",
-    customerAddress: "654 Construction House, Hyderabad, Telangana, 500001",
-    subtotal: 275000,
-    gst: 49500,
-    total: 324500,
-    status: "Rejected",
-    createdAt: "2023-05-25T16:30:00"
-  },
-  {
-    id: "Q-2023-006",
-    customerName: "Royal Interiors",
-    customerEmail: "designer@royalinteriors.com",
-    customerPhone: "+91 43210 98765",
-    customerAddress: "987 Design Street, Kolkata, West Bengal, 700001",
-    subtotal: 192500,
-    gst: 34650,
-    total: 227150,
-    status: "Pending",
-    createdAt: "2023-05-20T13:10:00"
-  }
-];
+import { toast } from "sonner";
+import { getQuotations } from "@/services/quotationService";
+import { useAuth } from "@/context/AuthContext";
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -126,25 +56,33 @@ const getStatusColor = (status: string) => {
 };
 
 const QuotationsPage = () => {
-  const [quotations, setQuotations] = useState(mockQuotations);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [dateFilter, setDateFilter] = useState("All Time");
   const [sortOrder, setSortOrder] = useState("newest");
 
+  // Fetch quotations
+  const { data: quotations = [], isLoading, error } = useQuery({
+    queryKey: ['quotations'],
+    queryFn: getQuotations,
+  });
+
   // Filter quotations based on search query, status, and date
   const filteredQuotations = quotations.filter(quote => {
     const matchesSearch = 
-      quote.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      quote.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      quote.customerEmail.toLowerCase().includes(searchQuery.toLowerCase());
+      quote.quote_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      quote.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (quote.customer_email && quote.customer_email.toLowerCase().includes(searchQuery.toLowerCase()));
       
     const matchesStatus = statusFilter === "All" || quote.status === statusFilter;
     
     // Date filtering
     if (dateFilter === "All Time") return matchesSearch && matchesStatus;
     
-    const quoteDate = new Date(quote.createdAt);
+    const quoteDate = new Date(quote.created_at);
     const now = new Date();
     
     if (dateFilter === "Today") {
@@ -170,10 +108,10 @@ const QuotationsPage = () => {
   // Sort quotations
   const sortedQuotations = [...filteredQuotations].sort((a, b) => {
     if (sortOrder === "newest") {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     }
     if (sortOrder === "oldest") {
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     }
     if (sortOrder === "highest") {
       return b.total - a.total;
@@ -183,6 +121,31 @@ const QuotationsPage = () => {
     }
     return 0;
   });
+
+  const handleEmailQuotation = (id: string) => {
+    toast.success("Email feature will be implemented soon");
+  };
+
+  const handleDownloadQuotation = (id: string) => {
+    toast.success("Download feature will be implemented soon");
+  };
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96">
+        <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+        <h3 className="text-xl font-semibold mb-2">Error Loading Quotations</h3>
+        <p className="text-gray-500 mb-4">
+          {(error as any).message || "Failed to load quotations. Please try again."}
+        </p>
+        <Button
+          onClick={() => queryClient.invalidateQueries({ queryKey: ['quotations'] })}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -293,7 +256,12 @@ const QuotationsPage = () => {
       </div>
 
       {/* Quotations List */}
-      {sortedQuotations.length > 0 ? (
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-2 text-muted-foreground">Loading quotations...</span>
+        </div>
+      ) : sortedQuotations.length > 0 ? (
         <div className="grid gap-4">
           {sortedQuotations.map((quote) => (
             <Card key={quote.id} className="overflow-hidden hover-lift">
@@ -301,13 +269,13 @@ const QuotationsPage = () => {
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-3">
-                      <CardTitle>{quote.id}</CardTitle>
+                      <CardTitle>{quote.quote_number}</CardTitle>
                       <Badge className={getStatusColor(quote.status)}>
                         {quote.status}
                       </Badge>
                     </div>
                     <div className="text-sm text-muted-foreground mt-1">
-                      {new Date(quote.createdAt).toLocaleString()}
+                      {new Date(quote.created_at).toLocaleString()}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -317,10 +285,20 @@ const QuotationsPage = () => {
                         <span>View</span>
                       </Button>
                     </Link>
-                    <Button variant="ghost" size="sm" className="h-8">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8"
+                      onClick={() => handleDownloadQuotation(quote.id)}
+                    >
                       <Download className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-8">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8"
+                      onClick={() => handleEmailQuotation(quote.id)}
+                    >
                       <Mail className="h-4 w-4" />
                     </Button>
                   </div>
@@ -330,15 +308,15 @@ const QuotationsPage = () => {
                 <div className="grid md:grid-cols-3 gap-4">
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground mb-1">Customer</h4>
-                    <div className="font-medium">{quote.customerName}</div>
+                    <div className="font-medium">{quote.customer_name}</div>
                     <div className="text-sm mt-1">
-                      <div>{quote.customerEmail}</div>
-                      <div>{quote.customerPhone}</div>
+                      {quote.customer_email && <div>{quote.customer_email}</div>}
+                      {quote.customer_phone && <div>{quote.customer_phone}</div>}
                     </div>
                   </div>
                   <div className="md:col-span-1">
                     <h4 className="text-sm font-medium text-muted-foreground mb-1">Shipping Address</h4>
-                    <div className="text-sm">{quote.customerAddress}</div>
+                    <div className="text-sm">{quote.customer_address || "No address provided"}</div>
                   </div>
                   <div className="md:text-right">
                     <h4 className="text-sm font-medium text-muted-foreground mb-1">Amount</h4>
@@ -360,7 +338,9 @@ const QuotationsPage = () => {
           </div>
           <h3 className="text-lg font-medium">No quotations found</h3>
           <p className="text-muted-foreground mt-1 mb-6">
-            Try adjusting your filters or create a new quotation.
+            {searchQuery || statusFilter !== "All" || dateFilter !== "All Time"
+              ? "Try adjusting your filters or create a new quotation."
+              : "No quotations have been created yet."}
           </p>
           <Link to="/quotations/new">
             <Button className="flex items-center gap-2">

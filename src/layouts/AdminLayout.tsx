@@ -4,14 +4,13 @@ import { Outlet, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { 
   LayoutDashboard, 
-  Users, 
-  Package, 
-  Settings, 
+  Users,
   LogOut, 
   Menu, 
   X,
-  ShieldCheck,
-  ChevronDown
+  User,
+  ChevronDown,
+  ArrowLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -38,8 +37,6 @@ const AdminLayout = () => {
   const navigation = [
     { name: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
     { name: "Users", path: "/admin/users", icon: Users },
-    { name: "Products", path: "/admin/products", icon: Package },
-    { name: "Settings", path: "/admin/settings", icon: Settings },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -56,16 +53,15 @@ const AdminLayout = () => {
       
       {/* Sidebar */}
       <aside 
-        className={`fixed lg:sticky top-0 left-0 h-screen bg-gray-900 text-white z-20
+        className={`fixed lg:sticky top-0 left-0 h-screen bg-slate-900 text-white z-20
         transition-all duration-300 transform ${sidebarOpen ? "translate-x-0 w-64" : "-translate-x-full lg:translate-x-0 lg:w-20"}`}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="p-6 border-b border-gray-800">
-            <div className={`font-semibold flex items-center transition-all duration-300 ${sidebarOpen ? "text-xl" : "text-center text-base justify-center"}`}>
-              <ShieldCheck className="h-6 w-6 text-primary mr-2" />
-              {sidebarOpen && <span>Admin Panel</span>}
-            </div>
+          <div className="p-6 border-b border-slate-800">
+            <h1 className={`font-semibold transition-all duration-300 ${sidebarOpen ? "text-xl" : "text-center text-base"}`}>
+              {sidebarOpen ? "Admin Panel" : "AP"}
+            </h1>
           </div>
           
           {/* Navigation */}
@@ -77,11 +73,11 @@ const AdminLayout = () => {
                     to={item.path}
                     className={`flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group
                     ${isActive(item.path) 
-                      ? "bg-primary/20 text-primary font-medium" 
-                      : "text-gray-300 hover:bg-gray-800"}
+                      ? "bg-white/10 text-white font-medium" 
+                      : "text-gray-300 hover:bg-white/5 hover:text-white"}
                     `}
                   >
-                    <item.icon className={`h-5 w-5 flex-shrink-0 ${isActive(item.path) ? "text-primary" : ""}`} />
+                    <item.icon className={`h-5 w-5 flex-shrink-0 ${isActive(item.path) ? "text-white" : ""}`} />
                     <span className={`ml-3 transition-opacity duration-200 ${sidebarOpen ? "opacity-100" : "opacity-0 hidden lg:block"}`}>
                       {item.name}
                     </span>
@@ -91,11 +87,26 @@ const AdminLayout = () => {
             </ul>
           </nav>
           
+          {/* Return to app */}
+          <div className="p-4 border-t border-slate-800">
+            <Link to="/dashboard">
+              <button
+                className={`flex items-center px-3 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 hover:text-white w-full transition-all duration-200
+                ${sidebarOpen ? "" : "justify-center"}`}
+              >
+                <ArrowLeft className="h-5 w-5 flex-shrink-0" />
+                <span className={`ml-3 transition-opacity duration-200 ${sidebarOpen ? "opacity-100" : "opacity-0 hidden lg:block"}`}>
+                  Return to App
+                </span>
+              </button>
+            </Link>
+          </div>
+          
           {/* Logout button */}
-          <div className="p-4 border-t border-gray-800">
+          <div className="p-4 border-t border-slate-800">
             <button
               onClick={logout}
-              className={`flex items-center px-3 py-2.5 rounded-lg text-gray-300 hover:bg-gray-800 w-full transition-all duration-200
+              className={`flex items-center px-3 py-2.5 rounded-lg text-gray-300 hover:bg-white/5 hover:text-white w-full transition-all duration-200
               ${sidebarOpen ? "" : "justify-center"}`}
             >
               <LogOut className="h-5 w-5 flex-shrink-0" />
@@ -123,7 +134,7 @@ const AdminLayout = () => {
             {/* Page title - extracted from current route */}
             <div className="hidden sm:block lg:ml-16">
               <h1 className="text-xl font-medium text-gray-800">
-                {navigation.find(item => isActive(item.path))?.name || "Admin Panel"}
+                {navigation.find(item => isActive(item.path))?.name || "Admin"}
               </h1>
             </div>
             
@@ -131,18 +142,20 @@ const AdminLayout = () => {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-full bg-gray-900 flex items-center justify-center text-white">
-                    <ShieldCheck className="h-4 w-4" />
+                  <div className="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center text-white">
+                    <User className="h-4 w-4" />
                   </div>
-                  <span className="hidden md:inline-block font-medium">Administrator</span>
+                  <span className="hidden md:inline-block font-medium">{user?.name}</span>
                   <ChevronDown className="h-4 w-4 text-gray-500" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Admin Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>Profile</DropdownMenuItem>
-                <DropdownMenuItem>Security Settings</DropdownMenuItem>
+                <DropdownMenuItem as={Link} to="/dashboard">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Return to App
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={logout} className="text-red-500">
                   <LogOut className="h-4 w-4 mr-2" />

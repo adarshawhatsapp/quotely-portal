@@ -1,10 +1,12 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { Session, User } from "@supabase/supabase-js";
 
 type Role = "admin" | "user";
 
-interface User {
+interface UserProfile {
   id: string;
   email: string;
   name: string;
@@ -12,7 +14,7 @@ interface User {
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: UserProfile | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   adminLogin: (email: string, password: string) => Promise<boolean>;
@@ -35,40 +37,91 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Initialize auth state from Supabase session
   useEffect(() => {
-    // Check if user is logged in from localStorage
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
+    const initializeAuth = async () => {
+      try {
+        // Check active session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          await setUserFromSession(session);
+        }
+        
+        // Listen for auth changes
+        const { data: { subscription } } = await supabase.auth.onAuthStateChange(
+          async (_event, session) => {
+            if (session) {
+              await setUserFromSession(session);
+            } else {
+              setUser(null);
+            }
+            setIsLoading(false);
+          }
+        );
+        
+        return () => {
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error("Auth initialization error:", error);
+        setIsLoading(false);
+      }
+    };
+    
+    initializeAuth();
   }, []);
+  
+  // Helper function to set user data from session
+  const setUserFromSession = async (session: Session) => {
+    try {
+      // Get user from session
+      const supabaseUser = session.user;
+      
+      // Get profile data
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', supabaseUser.id)
+        .single();
+      
+      if (error) throw error;
+      
+      // Combine auth user and profile
+      const userProfile: UserProfile = {
+        id: supabaseUser.id,
+        email: supabaseUser.email || '',
+        name: profile.name,
+        role: profile.role as Role
+      };
+      
+      setUser(userProfile);
+    } catch (error) {
+      console.error("Error setting user from session:", error);
+      setUser(null);
+    }
+  };
 
-  // Mock login function (will be replaced with API call)
+  // Login function
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true);
       
-      // This would be an API call in production
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock successful login for demonstration
-      const mockUser: User = {
-        id: "usr_" + Math.random().toString(36).substring(2, 9),
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        name: email.split('@')[0],
-        role: "user"
-      };
+        password
+      });
       
-      setUser(mockUser);
-      localStorage.setItem("user", JSON.stringify(mockUser));
+      if (error) throw error;
+      
+      // User will be set by the onAuthStateChange listener
       toast.success("Welcome back!");
       return true;
-    } catch (error) {
-      toast.error("Login failed. Please check your credentials.");
+    } catch (error: any) {
+      toast.error(error.message || "Login failed. Please check your credentials.");
       console.error("Login error:", error);
       return false;
     } finally {
@@ -76,28 +129,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Mock admin login
+  // Admin login - same as regular login, but we verify role after login
   const adminLogin = async (email: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true);
       
-      // This would be an API call in production
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock successful admin login
-      const mockAdminUser: User = {
-        id: "adm_" + Math.random().toString(36).substring(2, 9),
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        name: "Admin",
-        role: "admin"
-      };
+        password
+      });
       
-      setUser(mockAdminUser);
-      localStorage.setItem("user", JSON.stringify(mockAdminUser));
+      if (error) throw error;
+      
+      // Check if user is admin
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single();
+        
+      if (profileError) throw profileError;
+      
+      if (profile.role !== 'admin') {
+        // Sign out if not admin
+        await supabase.auth.signOut();
+        toast.error("Access denied. Admin privileges required.");
+        return false;
+      }
+      
       toast.success("Welcome, Admin!");
       return true;
-    } catch (error) {
-      toast.error("Admin login failed.");
+    } catch (error: any) {
+      toast.error(error.message || "Admin login failed.");
       console.error("Admin login error:", error);
       return false;
     } finally {
@@ -105,28 +168,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Mock register function
+  // Register function
   const register = async (name: string, email: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true);
       
-      // This would be an API call in production
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock successful registration
-      const mockUser: User = {
-        id: "usr_" + Math.random().toString(36).substring(2, 9),
+      const { data, error } = await supabase.auth.signUp({
         email,
-        name,
-        role: "user"
-      };
+        password,
+        options: {
+          data: {
+            name: name
+          }
+        }
+      });
       
-      setUser(mockUser);
-      localStorage.setItem("user", JSON.stringify(mockUser));
+      if (error) throw error;
+      
+      // If email confirmation is enabled, we need to tell the user
+      if (!data.session) {
+        toast.success("Registration successful! Please check your email to confirm your account.");
+        return true;
+      }
+      
+      // User will be set by the onAuthStateChange listener
       toast.success("Registration successful!");
       return true;
-    } catch (error) {
-      toast.error("Registration failed. Please try again.");
+    } catch (error: any) {
+      toast.error(error.message || "Registration failed. Please try again.");
       console.error("Registration error:", error);
       return false;
     } finally {
@@ -134,10 +203,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem("user");
-    toast.info("You have been logged out");
+  // Logout function
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      toast.info("You have been logged out");
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast.error("Logout failed");
+    }
   };
 
   return (
