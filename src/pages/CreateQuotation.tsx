@@ -20,6 +20,7 @@ import {
   Trash,
   ChevronDown,
   ArrowRight,
+  ArrowLeft,  
   Save,
   ShoppingCart,
   ChevronRight,

@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { 
   LayoutDashboard, 
   Package, 
-  Tool, 
+  Wrench, 
   FileText, 
   FilePlus, 
   LogOut, 
@@ -39,7 +39,7 @@ const MainLayout = () => {
   const navigation = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { name: "Products", path: "/products", icon: Package },
-    { name: "Spares", path: "/spares", icon: Tool },
+    { name: "Spares", path: "/spares", icon: Wrench },
     { name: "Quotations", path: "/quotations", icon: FileText },
     { name: "Create Quote", path: "/quotations/new", icon: FilePlus },
   ];
