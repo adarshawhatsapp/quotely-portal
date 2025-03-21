@@ -1,15 +1,17 @@
 
-import { useEffect } from "react";
+import { ReactNode, useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Loader2 } from "lucide-react";
 
+// Make sure the interface is properly exported and has the correct types
 export interface ProtectedRouteProps {
-  children: React.ReactNode;
+  children: ReactNode;
   allowedRoles?: ("admin" | "user")[];
 }
 
-const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
+// Explicitly define the function component type
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
   const { user, isLoading } = useAuth();
   const location = useLocation();
 

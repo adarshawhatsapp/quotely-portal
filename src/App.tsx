@@ -54,7 +54,7 @@ function App() {
               <Route path="/admin/login" element={<AdminLoginPage />} />
             </Route>
             
-            {/* Protected routes */}
+            {/* Protected routes - use proper type for children */}
             <Route 
               path="/dashboard" 
               element={
