@@ -1,14 +1,15 @@
 
 import { useEffect } from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Loader2 } from "lucide-react";
 
 interface ProtectedRouteProps {
-  requiredRole?: "admin" | "user";
+  children: React.ReactNode;
+  allowedRoles?: ("admin" | "user")[];
 }
 
-const ProtectedRoute = ({ requiredRole }: ProtectedRouteProps) => {
+const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const { user, isLoading } = useAuth();
   const location = useLocation();
 
@@ -38,17 +39,17 @@ const ProtectedRoute = ({ requiredRole }: ProtectedRouteProps) => {
   }
 
   // Check for role-based access
-  if (requiredRole && user.role !== requiredRole) {
+  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(user.role as "admin" | "user")) {
     // Redirect based on role
-    if (user.role === "admin" && requiredRole === "user") {
+    if (user.role === "admin") {
       return <Navigate to="/admin/dashboard" replace />;
-    } else if (user.role === "user" && requiredRole === "admin") {
+    } else {
       return <Navigate to="/dashboard" replace />;
     }
   }
 
-  // If all checks pass, render the protected route
-  return <Outlet />;
+  // If all checks pass, render the protected content
+  return <>{children}</>;
 };
 
 export default ProtectedRoute;

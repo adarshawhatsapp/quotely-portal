@@ -66,7 +66,15 @@ const CustomerSelect = ({ onSelect, selectedCustomer }: CustomerSelectProps) => 
 
   // Create customer mutation
   const createCustomerMutation = useMutation({
-    mutationFn: createCustomer,
+    mutationFn: (data: CustomerFormValues) => {
+      // Ensure name is always passed as required by the Customer type
+      return createCustomer({
+        name: data.name,
+        email: data.email || null,
+        phone: data.phone || null,
+        address: data.address || null
+      });
+    },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['customerSearch'] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });

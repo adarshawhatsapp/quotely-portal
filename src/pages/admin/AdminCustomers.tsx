@@ -96,7 +96,15 @@ const AdminCustomersPage = () => {
 
   // Create customer mutation
   const createCustomerMutation = useMutation({
-    mutationFn: createCustomer,
+    mutationFn: (data: CustomerFormValues) => {
+      // Ensure name is always passed as required by the Customer type
+      return createCustomer({
+        name: data.name,
+        email: data.email || null,
+        phone: data.phone || null,
+        address: data.address || null
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setIsCreateDialogOpen(false);
@@ -111,7 +119,12 @@ const AdminCustomersPage = () => {
   // Update customer mutation
   const updateCustomerMutation = useMutation({
     mutationFn: ({ id, data }: { id: string, data: Partial<CustomerFormValues> }) => 
-      updateCustomer(id, data),
+      updateCustomer(id, {
+        name: data.name as string, // Cast to string as we know it's required
+        email: data.email || null,
+        phone: data.phone || null,
+        address: data.address || null
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setIsEditDialogOpen(false);

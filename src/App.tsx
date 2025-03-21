@@ -55,30 +55,128 @@ function App() {
             </Route>
             
             {/* Protected routes */}
-            <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/products" element={<ProductsPage />} />
-              <Route path="/spares" element={<SparesPage />} />
-              <Route path="/quotations" element={<QuotationsPage />} />
-              <Route path="/quotations/:id" element={<QuotationDetailPage />} />
-              <Route path="/quotations/new" element={<CreateQuotationPage />} />
-            </Route>
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <DashboardPage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/products" 
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <ProductsPage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/spares" 
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <SparesPage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/quotations" 
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <QuotationsPage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/quotations/:id" 
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <QuotationDetailPage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/quotations/new" 
+              element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <CreateQuotationPage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } 
+            />
             
             {/* Admin routes */}
             <Route 
+              path="/admin/dashboard" 
               element={
                 <ProtectedRoute allowedRoles={["admin"]}>
-                  <AdminLayout />
+                  <AdminLayout>
+                    <AdminDashboardPage />
+                  </AdminLayout>
                 </ProtectedRoute>
               }
-            >
-              <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-              <Route path="/admin/users" element={<AdminUsersPage />} />
-              <Route path="/admin/products" element={<AdminProductsPage />} />
-              <Route path="/admin/spares" element={<AdminSparesPage />} />
-              <Route path="/admin/quotations" element={<AdminQuotationsPage />} />
-              <Route path="/admin/customers" element={<AdminCustomersPage />} />
-            </Route>
+            />
+            <Route 
+              path="/admin/users" 
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminLayout>
+                    <AdminUsersPage />
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route 
+              path="/admin/products" 
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminLayout>
+                    <AdminProductsPage />
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route 
+              path="/admin/spares" 
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminLayout>
+                    <AdminSparesPage />
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route 
+              path="/admin/quotations" 
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminLayout>
+                    <AdminQuotationsPage />
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route 
+              path="/admin/customers" 
+              element={
+                <ProtectedRoute allowedRoles={["admin"]}>
+                  <AdminLayout>
+                    <AdminCustomersPage />
+                  </AdminLayout>
+                </ProtectedRoute>
+              }
+            />
             
             {/* Fallback routes */}
             <Route path="/404" element={<NotFoundPage />} />
