@@ -1,30 +1,17 @@
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Card, 
   CardContent, 
   CardHeader, 
   CardTitle,
+  CardFooter,
   CardDescription
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
-import { 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash, 
-  User,
-  UserPlus,
-  Phone,
-  Mail,
-  Loader2 
-} from "lucide-react";
-import { 
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -34,59 +21,86 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Table, 
-  TableHeader, 
-  TableRow, 
-  TableHead, 
-  TableBody, 
-  TableCell 
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { 
-  getCustomers, 
-  createCustomer, 
-  updateCustomer, 
-  deleteCustomer,
-  Customer
-} from "@/services/customerService";
+  Form, 
+  FormControl, 
+  FormField, 
+  FormItem, 
+  FormLabel, 
+  FormMessage 
+} from "@/components/ui/form";
+import {
+  Trash2,
+  Edit,
+  Search,
+  UserPlus,
+  Loader2
+} from "lucide-react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
+import { getCustomers, createCustomer, updateCustomer, deleteCustomer, Customer } from "@/services/customerService";
+
+// Form schema for customer
+const customerSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
+  address: z.string().optional().or(z.literal(""))
+});
+
+type CustomerFormValues = z.infer<typeof customerSchema>;
 
 const AdminCustomersPage = () => {
   const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [customerToDelete, setCustomerToDelete] = useState<string | null>(null);
-  const [customerToEdit, setCustomerToEdit] = useState<Customer | null>(null);
-  const [formState, setFormState] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    address: ""
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
+  // Form setup
+  const createForm = useForm<CustomerFormValues>({
+    resolver: zodResolver(customerSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+      address: ""
+    }
   });
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  const editForm = useForm<CustomerFormValues>({
+    resolver: zodResolver(customerSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+      address: ""
+    }
+  });
 
   // Fetch customers
-  const { data: customers, isLoading, error } = useQuery({
+  const { data: customers = [], isLoading } = useQuery({
     queryKey: ['customers'],
-    queryFn: getCustomers,
+    queryFn: getCustomers
   });
 
   // Create customer mutation
-  const createMutation = useMutation({
+  const createCustomerMutation = useMutation({
     mutationFn: createCustomer,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
-      resetForm();
       setIsCreateDialogOpen(false);
+      createForm.reset();
       toast.success("Customer created successfully");
     },
     onError: (error: any) => {
@@ -95,14 +109,13 @@ const AdminCustomersPage = () => {
   });
 
   // Update customer mutation
-  const updateMutation = useMutation({
-    mutationFn: ({ id, customer }: { id: string; customer: Partial<Customer> }) => 
-      updateCustomer(id, customer),
+  const updateCustomerMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string, data: Partial<CustomerFormValues> }) => 
+      updateCustomer(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
-      resetForm();
       setIsEditDialogOpen(false);
-      setCustomerToEdit(null);
+      setSelectedCustomer(null);
       toast.success("Customer updated successfully");
     },
     onError: (error: any) => {
@@ -111,11 +124,12 @@ const AdminCustomersPage = () => {
   });
 
   // Delete customer mutation
-  const deleteMutation = useMutation({
+  const deleteCustomerMutation = useMutation({
     mutationFn: (id: string) => deleteCustomer(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
-      setCustomerToDelete(null);
+      setIsDeleteDialogOpen(false);
+      setSelectedCustomer(null);
       toast.success("Customer deleted successfully");
     },
     onError: (error: any) => {
@@ -123,70 +137,20 @@ const AdminCustomersPage = () => {
     }
   });
 
-  // Filter customers based on search term
-  const filteredCustomers = customers?.filter(customer => 
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (customer.email && customer.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (customer.phone && customer.phone.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-
-  const resetForm = () => {
-    setFormState({
-      name: "",
-      email: "",
-      phone: "",
-      address: ""
-    });
-    setFormErrors({});
+  // Handle form submissions
+  const onCreateSubmit = (data: CustomerFormValues) => {
+    createCustomerMutation.mutate(data);
   };
 
-  const validateForm = () => {
-    const errors: Record<string, string> = {};
-    
-    if (!formState.name.trim()) {
-      errors.name = "Customer name is required";
+  const onEditSubmit = (data: CustomerFormValues) => {
+    if (selectedCustomer) {
+      updateCustomerMutation.mutate({ id: selectedCustomer.id, data });
     }
-    
-    if (formState.email.trim() && !/\S+@\S+\.\S+/.test(formState.email)) {
-      errors.email = "Invalid email address";
-    }
-    
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
   };
 
-  const handleCreateCustomer = async () => {
-    if (!validateForm()) return;
-    
-    createMutation.mutate({
-      name: formState.name,
-      email: formState.email || null,
-      phone: formState.phone || null,
-      address: formState.address || null
-    });
-  };
-
-  const handleUpdateCustomer = async () => {
-    if (!customerToEdit || !validateForm()) return;
-    
-    updateMutation.mutate({
-      id: customerToEdit.id,
-      customer: {
-        name: formState.name,
-        email: formState.email || null,
-        phone: formState.phone || null,
-        address: formState.address || null
-      }
-    });
-  };
-
-  const handleDeleteCustomer = (id: string) => {
-    deleteMutation.mutate(id);
-  };
-
-  const openEditDialog = (customer: Customer) => {
-    setCustomerToEdit(customer);
-    setFormState({
+  const handleEditCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    editForm.reset({
       name: customer.name,
       email: customer.email || "",
       phone: customer.phone || "",
@@ -195,298 +159,313 @@ const AdminCustomersPage = () => {
     setIsEditDialogOpen(true);
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">Loading customers...</span>
-      </div>
-    );
-  }
+  const handleDeleteCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setIsDeleteDialogOpen(true);
+  };
 
-  if (error) {
-    return (
-      <div className="p-8 text-center">
-        <h3 className="text-xl font-semibold text-red-500 mb-2">Error Loading Customers</h3>
-        <p className="text-gray-500">{(error as any).message}</p>
-        <Button 
-          className="mt-4" 
-          onClick={() => queryClient.invalidateQueries({ queryKey: ['customers'] })}
-        >
-          Retry
-        </Button>
-      </div>
-    );
-  }
+  const confirmDelete = () => {
+    if (selectedCustomer) {
+      deleteCustomerMutation.mutate(selectedCustomer.id);
+    }
+  };
+
+  // Filter customers based on search query
+  const filteredCustomers = customers.filter(customer => 
+    customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (customer.email && customer.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (customer.phone && customer.phone.includes(searchQuery))
+  );
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold tracking-tight">Customer Management</h1>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => {
-              resetForm();
-              setIsCreateDialogOpen(true);
-            }}>
-              <UserPlus className="h-4 w-4 mr-2" />
-              Add Customer
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Customer</DialogTitle>
-              <DialogDescription>
-                Fill in the customer details below.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name *</Label>
-                <Input 
-                  id="name" 
-                  value={formState.name} 
-                  onChange={e => setFormState({ ...formState, name: e.target.value })}
-                  placeholder="John Smith"
-                />
-                {formErrors.name && <p className="text-sm text-red-500">{formErrors.name}</p>}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    value={formState.email} 
-                    onChange={e => setFormState({ ...formState, email: e.target.value })}
-                    placeholder="john@example.com"
-                  />
-                  {formErrors.email && <p className="text-sm text-red-500">{formErrors.email}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input 
-                    id="phone" 
-                    value={formState.phone} 
-                    onChange={e => setFormState({ ...formState, phone: e.target.value })}
-                    placeholder="+91 98765 43210"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
-                <Textarea 
-                  id="address" 
-                  value={formState.address} 
-                  onChange={e => setFormState({ ...formState, address: e.target.value })}
-                  placeholder="123 Business Park, Mumbai, Maharashtra, 400001"
-                  rows={3}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button 
-                variant="outline" 
-                onClick={() => setIsCreateDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleCreateCustomer}
-                disabled={createMutation.isPending}
-              >
-                {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Create Customer
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Customers</h1>
+          <p className="text-muted-foreground mt-1">
+            View and manage your customer database
+          </p>
+        </div>
+        <Button onClick={() => setIsCreateDialogOpen(true)}>
+          <UserPlus className="mr-2 h-4 w-4" />
+          Add Customer
+        </Button>
       </div>
 
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          type="search"
+          placeholder="Search customers..."
+          className="pl-8"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+
+      {/* Customers Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Customers</CardTitle>
-          <CardDescription>Manage your customer database</CardDescription>
-          <div className="flex mt-4">
-            <div className="relative w-full max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search customers..."
-                className="pl-8 w-full"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
+          <CardTitle>All Customers</CardTitle>
+          <CardDescription>
+            {filteredCustomers.length} total customers
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Contact Information</TableHead>
-                <TableHead>Address</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCustomers && filteredCustomers.length > 0 ? (
-                filteredCustomers.map((customer) => (
-                  <TableRow key={customer.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <User className="h-4 w-4 text-primary" />
-                        </div>
-                        <span className="font-medium">{customer.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        {customer.email && (
-                          <div className="flex items-center text-sm">
-                            <Mail className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                            <span>{customer.email}</span>
-                          </div>
-                        )}
-                        {customer.phone && (
-                          <div className="flex items-center text-sm">
-                            <Phone className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                            <span>{customer.phone}</span>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm text-muted-foreground">
-                        {customer.address || "No address provided"}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(customer)}
-                          title="Edit"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                          onClick={() => setCustomerToDelete(customer.id)}
-                          title="Delete"
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : filteredCustomers.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-muted-foreground">No customers found</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Address</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8">
-                    {searchTerm ? "No customers match your search" : "No customers found"}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredCustomers.map((customer) => (
+                    <TableRow key={customer.id}>
+                      <TableCell className="font-medium">{customer.name}</TableCell>
+                      <TableCell>{customer.email || "—"}</TableCell>
+                      <TableCell>{customer.phone || "—"}</TableCell>
+                      <TableCell className="max-w-xs truncate">
+                        {customer.address || "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditCustomer(customer)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive"
+                            onClick={() => handleDeleteCustomer(customer)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
+      {/* Create Customer Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Customer</DialogTitle>
+            <DialogDescription>
+              Enter the customer details below.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...createForm}>
+            <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4 py-2">
+              <FormField
+                control={createForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name *</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={createForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={createForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input type="tel" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={createForm.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Address</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsCreateDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createCustomerMutation.isPending}>
+                  {createCustomerMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Save Customer
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Customer Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Customer</DialogTitle>
             <DialogDescription>
-              Update the customer details.
+              Update the customer information.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Full Name *</Label>
-              <Input 
-                id="edit-name" 
-                value={formState.name} 
-                onChange={e => setFormState({ ...formState, name: e.target.value })}
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 py-2">
+              <FormField
+                control={editForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name *</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-              {formErrors.name && <p className="text-sm text-red-500">{formErrors.name}</p>}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-email">Email</Label>
-                <Input 
-                  id="edit-email" 
-                  type="email" 
-                  value={formState.email} 
-                  onChange={e => setFormState({ ...formState, email: e.target.value })}
-                />
-                {formErrors.email && <p className="text-sm text-red-500">{formErrors.email}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-phone">Phone Number</Label>
-                <Input 
-                  id="edit-phone" 
-                  value={formState.phone} 
-                  onChange={e => setFormState({ ...formState, phone: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-address">Address</Label>
-              <Textarea 
-                id="edit-address" 
-                value={formState.address} 
-                onChange={e => setFormState({ ...formState, address: e.target.value })}
-                rows={3}
+              <FormField
+                control={editForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-          </div>
+              <FormField
+                control={editForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input type="tel" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Address</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={updateCustomerMutation.isPending}>
+                  {updateCustomerMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Update Customer
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Customer</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this customer? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
           <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setIsEditDialogOpen(false);
-                setCustomerToEdit(null);
-              }}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
             >
               Cancel
             </Button>
             <Button 
-              onClick={handleUpdateCustomer}
-              disabled={updateMutation.isPending}
+              variant="destructive" 
+              onClick={confirmDelete}
+              disabled={deleteCustomerMutation.isPending}
             >
-              {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Update Customer
+              {deleteCustomerMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Delete Customer Dialog */}
-      <AlertDialog open={!!customerToDelete} onOpenChange={() => setCustomerToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action will permanently delete this customer. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => customerToDelete && handleDeleteCustomer(customerToDelete)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };
