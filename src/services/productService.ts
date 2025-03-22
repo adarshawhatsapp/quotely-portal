@@ -55,7 +55,7 @@ export const getProductById = async (id: string): Promise<Product> => {
 
 // Create new product
 export const createProduct = async (product: Omit<Product, 'id' | 'created_at'>): Promise<Product> => {
-  console.log("Creating product with data:", product);
+  console.log("Creating product with data:", JSON.stringify(product, null, 2));
   
   // Make sure customizations is an array
   let customizationsArray: string[] = [];
@@ -65,10 +65,26 @@ export const createProduct = async (product: Omit<Product, 'id' | 'created_at'>)
   } else if (product.customizations && typeof product.customizations === 'string') {
     // Explicitly assert the type to string to avoid 'never' type inference
     const customizationsStr = product.customizations as string;
-    customizationsArray = customizationsStr.split(',').map(item => item.trim()).filter(Boolean);
+    try {
+      customizationsArray = customizationsStr.split(',').map(item => item.trim()).filter(Boolean);
+    } catch (error) {
+      console.error("Error processing customizations:", error);
+      customizationsArray = [];
+    }
   }
         
   try {
+    console.log("Sending product data to Supabase:", {
+      name: product.name,
+      model_number: product.model_number,
+      category: product.category,
+      price: product.price,
+      discounted_price: product.discounted_price,
+      image: product.image,
+      description: product.description,
+      customizations: customizationsArray
+    });
+
     const { data, error } = await supabase
       .from('products')
       .insert([{
@@ -107,7 +123,7 @@ export const createProduct = async (product: Omit<Product, 'id' | 'created_at'>)
 
 // Update product
 export const updateProduct = async (id: string, product: Partial<Omit<Product, 'id' | 'created_at'>>): Promise<Product> => {
-  console.log("Updating product:", id, product);
+  console.log("Updating product:", id, JSON.stringify(product, null, 2));
   
   // Handle customizations - ensure it's an array
   let updatedProduct = { ...product };
@@ -120,13 +136,20 @@ export const updateProduct = async (id: string, product: Partial<Omit<Product, '
     } else if (product.customizations && typeof product.customizations === 'string') {
       // Explicitly assert the type to string to avoid 'never' type inference
       const customizationsStr = product.customizations as string;
-      customizationsArray = customizationsStr.split(',').map(item => item.trim()).filter(Boolean);
+      try {
+        customizationsArray = customizationsStr.split(',').map(item => item.trim()).filter(Boolean);
+      } catch (error) {
+        console.error("Error processing customizations:", error);
+        customizationsArray = [];
+      }
     }
     
     updatedProduct.customizations = customizationsArray;
   }
   
   try {
+    console.log("Sending updated product data to Supabase:", updatedProduct);
+    
     const { data, error } = await supabase
       .from('products')
       .update(updatedProduct)
@@ -179,7 +202,7 @@ export const deleteProduct = async (id: string): Promise<void> => {
 export const uploadProductImage = async (file: File): Promise<string> => {
   if (!file) throw new Error("No file provided");
   
-  console.log("Uploading image:", file.name);
+  console.log("Starting image upload:", file.name, "Size:", file.size, "Type:", file.type);
   
   try {
     // Generate a unique filename
@@ -189,10 +212,24 @@ export const uploadProductImage = async (file: File): Promise<string> => {
     
     console.log("Generated file path:", filePath);
     
-    // Upload to Supabase Storage
+    // Check storage bucket exists and is accessible
+    const { data: bucketData, error: bucketError } = await supabase.storage
+      .getBucket('products');
+      
+    if (bucketError) {
+      console.error("Error checking storage bucket:", bucketError);
+      throw new Error(`Storage bucket 'products' may not exist: ${bucketError.message}`);
+    }
+    console.log("Storage bucket verified:", bucketData);
+    
+    // Upload to Supabase Storage with progress tracking
+    console.log("Uploading file to Supabase Storage...");
     const { error: uploadError, data } = await supabase.storage
       .from('products')
-      .upload(filePath, file);
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
     
     if (uploadError) {
       console.error("Storage upload error:", uploadError);
@@ -206,7 +243,7 @@ export const uploadProductImage = async (file: File): Promise<string> => {
       .from('products')
       .getPublicUrl(filePath);
     
-    console.log("Public URL:", publicUrl);
+    console.log("Generated public URL:", publicUrl);
     
     return publicUrl;
   } catch (error: any) {
