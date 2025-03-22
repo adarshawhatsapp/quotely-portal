@@ -42,7 +42,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { getProducts, createProduct, updateProduct, deleteProduct } from "@/services/productService";
+import { getProducts, createProduct, updateProduct, deleteProduct, uploadProductImage } from "@/services/productService";
 import { useAuth } from "@/context/AuthContext";
 
 const ProductsPage = () => {
@@ -78,7 +78,39 @@ const ProductsPage = () => {
 
   // Create product mutation
   const createProductMutation = useMutation({
-    mutationFn: createProduct,
+    mutationFn: async (productData: any) => {
+      // Handle file upload if present
+      if (productData.imageFile) {
+        try {
+          const imageUrl = await uploadProductImage(productData.imageFile);
+          productData.image = imageUrl;
+        } catch (error) {
+          console.error("Error uploading image:", error);
+          toast.error("Image upload failed. Creating product without image.");
+        }
+      }
+      
+      // Process customizations
+      let customizations = productData.customizations;
+      if (typeof customizations === 'string') {
+        customizations = customizations
+          .split(',')
+          .map((item: string) => item.trim())
+          .filter(Boolean);
+      }
+      
+      // Create the product
+      return createProduct({
+        name: productData.name,
+        model_number: productData.model_number,
+        category: productData.category,
+        price: parseFloat(productData.price),
+        discounted_price: productData.discounted_price ? parseFloat(productData.discounted_price) : null,
+        image: productData.image || null,
+        description: productData.description || null,
+        customizations: customizations
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       toast.success("Product created successfully");
@@ -86,14 +118,38 @@ const ProductsPage = () => {
       resetForm();
     },
     onError: (error: any) => {
+      console.error("Product creation error:", error);
       toast.error(`Failed to create product: ${error.message}`);
     }
   });
 
   // Update product mutation
   const updateProductMutation = useMutation({
-    mutationFn: ({ id, product }: { id: string, product: any }) => 
-      updateProduct(id, product),
+    mutationFn: async ({ id, product }: { id: string, product: any }) => {
+      // Handle file upload if present
+      if (product.imageFile) {
+        try {
+          const imageUrl = await uploadProductImage(product.imageFile);
+          product.image = imageUrl;
+        } catch (error) {
+          console.error("Error uploading image:", error);
+          toast.error("Image upload failed. Updating product without changing image.");
+        }
+        delete product.imageFile;
+      }
+      
+      // Process customizations
+      let customizations = product.customizations;
+      if (typeof customizations === 'string') {
+        customizations = customizations
+          .split(',')
+          .map((item: string) => item.trim())
+          .filter(Boolean);
+        product.customizations = customizations;
+      }
+      
+      return updateProduct(id, product);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       toast.success("Product updated successfully");
@@ -101,6 +157,7 @@ const ProductsPage = () => {
       resetForm();
     },
     onError: (error: any) => {
+      console.error("Product update error:", error);
       toast.error(`Failed to update product: ${error.message}`);
     }
   });
@@ -179,20 +236,16 @@ const ProductsPage = () => {
   };
 
   const handleAddProduct = () => {
-    const customizationsArray = productForm.customizations
-      .split(",")
-      .map(item => item.trim())
-      .filter(Boolean);
-    
     const productToAdd = {
       name: productForm.name,
       model_number: productForm.model_number,
       category: productForm.category,
-      price: parseFloat(productForm.price),
-      discounted_price: productForm.discounted_price ? parseFloat(productForm.discounted_price) : null,
+      price: productForm.price,
+      discounted_price: productForm.discounted_price || null,
       image: productForm.image || null,
       description: productForm.description || null,
-      customizations: customizationsArray
+      customizations: productForm.customizations,
+      imageFile: productForm.imageFile // This will be processed in the mutation
     };
     
     createProductMutation.mutate(productToAdd);
@@ -201,20 +254,16 @@ const ProductsPage = () => {
   const handleUpdateProduct = () => {
     if (!selectedProduct) return;
     
-    const customizationsArray = productForm.customizations
-      .split(",")
-      .map(item => item.trim())
-      .filter(Boolean);
-    
     const productToUpdate = {
       name: productForm.name,
       model_number: productForm.model_number,
       category: productForm.category,
-      price: parseFloat(productForm.price),
-      discounted_price: productForm.discounted_price ? parseFloat(productForm.discounted_price) : null,
+      price: productForm.price,
+      discounted_price: productForm.discounted_price || null,
       image: productForm.image || null,
       description: productForm.description || null,
-      customizations: customizationsArray
+      customizations: productForm.customizations,
+      imageFile: productForm.imageFile // This will be processed in the mutation
     };
     
     updateProductMutation.mutate({ 

@@ -65,9 +65,9 @@ import {
   createProduct, 
   updateProduct, 
   deleteProduct,
+  uploadProductImage,
   Product
 } from "@/services/productService";
-import { supabase } from "@/integrations/supabase/client";
 
 const AdminProductsPage = () => {
   const queryClient = useQueryClient();
@@ -98,7 +98,33 @@ const AdminProductsPage = () => {
 
   // Create product mutation
   const createMutation = useMutation({
-    mutationFn: createProduct,
+    mutationFn: async (formData: any) => {
+      let imageUrl = formData.imageUrl;
+      
+      // Upload image if file is selected
+      if (formData.imageFile) {
+        try {
+          imageUrl = await uploadProductImage(formData.imageFile);
+        } catch (error) {
+          console.error("Upload error:", error);
+          toast.error("Image upload failed. Proceeding with product creation.");
+        }
+      }
+      
+      // Filter out empty customizations
+      const customizations = formData.customizations.filter((item: string) => item.trim() !== "");
+      
+      return createProduct({
+        name: formData.name,
+        model_number: formData.modelNumber,
+        category: formData.category,
+        price: Number(formData.price),
+        discounted_price: formData.discountedPrice ? Number(formData.discountedPrice) : null,
+        description: formData.description,
+        image: imageUrl || null,
+        customizations: customizations
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       resetForm();
@@ -106,14 +132,40 @@ const AdminProductsPage = () => {
       toast.success("Product created successfully");
     },
     onError: (error: any) => {
+      console.error("Product creation error:", error);
       toast.error(`Failed to create product: ${error.message}`);
     }
   });
 
   // Update product mutation
   const updateMutation = useMutation({
-    mutationFn: ({ id, product }: { id: string; product: Partial<Product> }) => 
-      updateProduct(id, product),
+    mutationFn: async ({ id, product }: { id: string; product: any }) => {
+      let imageUrl = product.imageUrl;
+      
+      // Upload image if file is selected
+      if (product.imageFile) {
+        try {
+          imageUrl = await uploadProductImage(product.imageFile);
+        } catch (error) {
+          console.error("Upload error:", error);
+          toast.error("Image upload failed. Proceeding with product update.");
+        }
+      }
+      
+      // Filter out empty customizations
+      const customizations = product.customizations.filter((item: string) => item.trim() !== "");
+      
+      return updateProduct(id, {
+        name: product.name,
+        model_number: product.modelNumber,
+        category: product.category,
+        price: Number(product.price),
+        discounted_price: product.discountedPrice ? Number(product.discountedPrice) : null,
+        description: product.description,
+        image: imageUrl || null,
+        customizations: customizations
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       resetForm();
@@ -122,6 +174,7 @@ const AdminProductsPage = () => {
       toast.success("Product updated successfully");
     },
     onError: (error: any) => {
+      console.error("Product update error:", error);
       toast.error(`Failed to update product: ${error.message}`);
     }
   });
@@ -218,58 +271,34 @@ const AdminProductsPage = () => {
   const handleCreateProduct = async () => {
     if (!validateForm()) return;
     
-    let imageUrl = formState.imageUrl;
-    
-    // Upload image if file is selected
-    if (formState.imageFile) {
-      const uploadedUrl = await handleImageUpload(formState.imageFile);
-      if (uploadedUrl) {
-        imageUrl = uploadedUrl;
-      }
-    }
-    
-    // Filter out empty customizations
-    const customizations = formState.customizations.filter(item => item.trim() !== "");
-    
     createMutation.mutate({
       name: formState.name,
-      model_number: formState.modelNumber,
+      modelNumber: formState.modelNumber,
       category: formState.category,
-      price: Number(formState.price),
-      discounted_price: formState.discountedPrice ? Number(formState.discountedPrice) : undefined,
+      price: formState.price,
+      discountedPrice: formState.discountedPrice,
       description: formState.description,
-      image: imageUrl || null,
-      customizations: customizations
+      imageFile: formState.imageFile,
+      imageUrl: formState.imageUrl,
+      customizations: formState.customizations
     });
   };
 
   const handleUpdateProduct = async () => {
     if (!productToEdit || !validateForm()) return;
     
-    let imageUrl = formState.imageUrl;
-    
-    // Upload image if file is selected
-    if (formState.imageFile) {
-      const uploadedUrl = await handleImageUpload(formState.imageFile);
-      if (uploadedUrl) {
-        imageUrl = uploadedUrl;
-      }
-    }
-    
-    // Filter out empty customizations
-    const customizations = formState.customizations.filter(item => item.trim() !== "");
-    
     updateMutation.mutate({
       id: productToEdit.id,
       product: {
         name: formState.name,
-        model_number: formState.modelNumber,
+        modelNumber: formState.modelNumber,
         category: formState.category,
-        price: Number(formState.price),
-        discounted_price: formState.discountedPrice ? Number(formState.discountedPrice) : null,
+        price: formState.price, 
+        discountedPrice: formState.discountedPrice,
         description: formState.description,
-        image: imageUrl || null,
-        customizations: customizations
+        imageFile: formState.imageFile,
+        imageUrl: formState.imageUrl,
+        customizations: formState.customizations
       }
     });
   };
