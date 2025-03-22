@@ -213,7 +213,8 @@ const ProductsPage = () => {
       discounted_price: product.discounted_price ? product.discounted_price.toString() : "",
       image: product.image || "",
       description: product.description || "",
-      customizations: (product.customizations || []).join(", ")
+      customizations: (product.customizations || []).join(", "),
+      imageFile: null
     });
     setIsEditProductDialogOpen(true);
   };
