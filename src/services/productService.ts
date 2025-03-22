@@ -58,8 +58,8 @@ export const createProduct = async (product: Omit<Product, 'id' | 'created_at'>)
   
   if (Array.isArray(product.customizations)) {
     customizationsArray = product.customizations;
-  } else if (typeof product.customizations === 'string') {
-    // Fix the type error by checking for string type first
+  } else if (product.customizations && typeof product.customizations === 'string') {
+    // Check if customizations is not null/undefined AND it's a string
     customizationsArray = product.customizations.split(',').map(item => item.trim()).filter(Boolean);
   }
         
@@ -103,8 +103,8 @@ export const updateProduct = async (id: string, product: Partial<Omit<Product, '
     
     if (Array.isArray(product.customizations)) {
       customizationsArray = product.customizations;
-    } else if (typeof product.customizations === 'string') {
-      // Fix the type error by checking for string type first
+    } else if (product.customizations && typeof product.customizations === 'string') {
+      // Check if customizations is not null/undefined AND it's a string
       customizationsArray = product.customizations.split(',').map(item => item.trim()).filter(Boolean);
     }
     
