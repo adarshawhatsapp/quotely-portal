@@ -54,11 +54,13 @@ export const getProductById = async (id: string): Promise<Product> => {
 // Create new product
 export const createProduct = async (product: Omit<Product, 'id' | 'created_at'>): Promise<Product> => {
   // Make sure customizations is an array
-  const customizationsArray = Array.isArray(product.customizations) 
-    ? product.customizations 
-    : (typeof product.customizations === 'string' 
-        ? product.customizations.split(',').map(item => item.trim()).filter(Boolean)
-        : []);
+  let customizationsArray: string[] = [];
+  
+  if (Array.isArray(product.customizations)) {
+    customizationsArray = product.customizations;
+  } else if (typeof product.customizations === 'string') {
+    customizationsArray = product.customizations.split(',').map(item => item.trim()).filter(Boolean);
+  }
         
   const { data, error } = await supabase
     .from('products')
@@ -96,11 +98,15 @@ export const updateProduct = async (id: string, product: Partial<Omit<Product, '
   let updatedProduct = { ...product };
   
   if (product.customizations !== undefined) {
-    updatedProduct.customizations = Array.isArray(product.customizations) 
-      ? product.customizations 
-      : (typeof product.customizations === 'string' 
-          ? product.customizations.split(',').map(item => item.trim()).filter(Boolean)
-          : []);
+    let customizationsArray: string[] = [];
+    
+    if (Array.isArray(product.customizations)) {
+      customizationsArray = product.customizations;
+    } else if (typeof product.customizations === 'string') {
+      customizationsArray = product.customizations.split(',').map(item => item.trim()).filter(Boolean);
+    }
+    
+    updatedProduct.customizations = customizationsArray;
   }
   
   const { data, error } = await supabase

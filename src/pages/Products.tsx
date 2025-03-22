@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
@@ -58,7 +57,6 @@ const ProductsPage = () => {
   const [sortOrder, setSortOrder] = useState("name-asc");
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   
-  // Form state
   const [productForm, setProductForm] = useState({
     name: "",
     model_number: "",
@@ -67,19 +65,17 @@ const ProductsPage = () => {
     discounted_price: "",
     image: "",
     description: "",
-    customizations: ""
+    customizations: "",
+    imageFile: null as File | null
   });
 
-  // Fetch products
   const { data: products = [], isLoading, error } = useQuery({
     queryKey: ['products'],
     queryFn: getProducts,
   });
 
-  // Create product mutation
   const createProductMutation = useMutation({
     mutationFn: async (productData: any) => {
-      // Handle file upload if present
       if (productData.imageFile) {
         try {
           const imageUrl = await uploadProductImage(productData.imageFile);
@@ -90,7 +86,6 @@ const ProductsPage = () => {
         }
       }
       
-      // Process customizations
       let customizations = productData.customizations;
       if (typeof customizations === 'string') {
         customizations = customizations
@@ -99,7 +94,6 @@ const ProductsPage = () => {
           .filter(Boolean);
       }
       
-      // Create the product
       return createProduct({
         name: productData.name,
         model_number: productData.model_number,
@@ -123,10 +117,8 @@ const ProductsPage = () => {
     }
   });
 
-  // Update product mutation
   const updateProductMutation = useMutation({
     mutationFn: async ({ id, product }: { id: string, product: any }) => {
-      // Handle file upload if present
       if (product.imageFile) {
         try {
           const imageUrl = await uploadProductImage(product.imageFile);
@@ -138,7 +130,6 @@ const ProductsPage = () => {
         delete product.imageFile;
       }
       
-      // Process customizations
       let customizations = product.customizations;
       if (typeof customizations === 'string') {
         customizations = customizations
@@ -162,7 +153,6 @@ const ProductsPage = () => {
     }
   });
 
-  // Delete product mutation
   const deleteProductMutation = useMutation({
     mutationFn: deleteProduct,
     onSuccess: () => {
@@ -175,10 +165,8 @@ const ProductsPage = () => {
     }
   });
 
-  // Get unique categories
   const categories = ["All", ...new Set(products.map(product => product.category))];
 
-  // Filter products based on search query and category
   const filteredProducts = products.filter(product => {
     const matchesSearch = 
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -187,7 +175,6 @@ const ProductsPage = () => {
     return matchesSearch && matchesCategory;
   });
 
-  // Sort products
   const sortedProducts = [...filteredProducts].sort((a, b) => {
     const [field, direction] = sortOrder.split("-");
     
@@ -210,7 +197,8 @@ const ProductsPage = () => {
       discounted_price: "",
       image: "",
       description: "",
-      customizations: ""
+      customizations: "",
+      imageFile: null
     });
     setSelectedProduct(null);
   };
@@ -245,7 +233,7 @@ const ProductsPage = () => {
       image: productForm.image || null,
       description: productForm.description || null,
       customizations: productForm.customizations,
-      imageFile: productForm.imageFile // This will be processed in the mutation
+      imageFile: productForm.imageFile
     };
     
     createProductMutation.mutate(productToAdd);
@@ -263,7 +251,7 @@ const ProductsPage = () => {
       image: productForm.image || null,
       description: productForm.description || null,
       customizations: productForm.customizations,
-      imageFile: productForm.imageFile // This will be processed in the mutation
+      imageFile: productForm.imageFile
     };
     
     updateProductMutation.mutate({ 
@@ -428,7 +416,6 @@ const ProductsPage = () => {
         )}
       </div>
 
-      {/* Edit Product Dialog */}
       {isAdmin && (
         <Dialog open={isEditProductDialogOpen} onOpenChange={setIsEditProductDialogOpen}>
           <DialogContent className="sm:max-w-[550px]">
@@ -537,7 +524,6 @@ const ProductsPage = () => {
         </Dialog>
       )}
 
-      {/* Delete Confirmation Dialog */}
       {isAdmin && (
         <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
           <DialogContent className="sm:max-w-[425px]">
@@ -592,7 +578,6 @@ const ProductsPage = () => {
         </Dialog>
       )}
 
-      {/* Filters and Search */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="relative w-full md:w-64">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -666,7 +651,6 @@ const ProductsPage = () => {
         </div>
       </div>
 
-      {/* Products List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
