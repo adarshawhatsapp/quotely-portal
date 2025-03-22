@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
@@ -69,9 +68,6 @@ import {
   Product
 } from "@/services/productService";
 
-// Import supabase client
-import { supabase } from "@/integrations/supabase/client";
-
 const AdminProductsPage = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
@@ -93,30 +89,32 @@ const AdminProductsPage = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // Fetch products
   const { data: products, isLoading, error } = useQuery({
     queryKey: ['products'],
     queryFn: getProducts,
   });
 
-  // Create product mutation
   const createMutation = useMutation({
     mutationFn: async (formData: any) => {
       let imageUrl = formData.imageUrl;
       
-      // Upload image if file is selected
       if (formData.imageFile) {
         try {
+          setIsUploading(true);
+          toast.info("Uploading image...");
           imageUrl = await uploadProductImage(formData.imageFile);
-        } catch (error) {
+          toast.success("Image uploaded successfully");
+        } catch (error: any) {
           console.error("Upload error:", error);
-          toast.error("Image upload failed. Proceeding with product creation.");
+          toast.error(`Image upload failed: ${error.message}`);
+        } finally {
+          setIsUploading(false);
         }
       }
       
-      // Filter out empty customizations
       const customizations = formData.customizations.filter((item: string) => item.trim() !== "");
       
+      toast.info("Creating product...");
       return createProduct({
         name: formData.name,
         model_number: formData.modelNumber,
@@ -140,24 +138,27 @@ const AdminProductsPage = () => {
     }
   });
 
-  // Update product mutation
   const updateMutation = useMutation({
     mutationFn: async ({ id, product }: { id: string; product: any }) => {
       let imageUrl = product.imageUrl;
       
-      // Upload image if file is selected
       if (product.imageFile) {
         try {
+          setIsUploading(true);
+          toast.info("Uploading image...");
           imageUrl = await uploadProductImage(product.imageFile);
-        } catch (error) {
+          toast.success("Image uploaded successfully");
+        } catch (error: any) {
           console.error("Upload error:", error);
-          toast.error("Image upload failed. Proceeding with product update.");
+          toast.error(`Image upload failed: ${error.message}`);
+        } finally {
+          setIsUploading(false);
         }
       }
       
-      // Filter out empty customizations
       const customizations = product.customizations.filter((item: string) => item.trim() !== "");
       
+      toast.info("Updating product...");
       return updateProduct(id, {
         name: product.name,
         model_number: product.modelNumber,
@@ -165,7 +166,7 @@ const AdminProductsPage = () => {
         price: Number(product.price),
         discounted_price: product.discountedPrice ? Number(product.discountedPrice) : null,
         description: product.description,
-        image: imageUrl || null,
+        image: imageUrl || product.imageUrl || null,
         customizations: customizations
       });
     },
@@ -182,7 +183,6 @@ const AdminProductsPage = () => {
     }
   });
 
-  // Delete product mutation
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteProduct(id),
     onSuccess: () => {
@@ -195,7 +195,6 @@ const AdminProductsPage = () => {
     }
   });
 
-  // Filter products based on search term
   const filteredProducts = products?.filter(product => 
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     product.model_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -238,37 +237,6 @@ const AdminProductsPage = () => {
     
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
-  };
-
-  const handleImageUpload = async (file: File) => {
-    if (!file) return null;
-    
-    setIsUploading(true);
-    try {
-      // Generate a unique filename
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
-      const filePath = `products/${fileName}`;
-      
-      // Now supabase is properly imported
-      const { data, error } = await supabase.storage
-        .from('products')
-        .upload(filePath, file);
-      
-      if (error) throw error;
-      
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('products')
-        .getPublicUrl(filePath);
-      
-      return publicUrl;
-    } catch (error: any) {
-      toast.error(`Upload failed: ${error.message}`);
-      return null;
-    } finally {
-      setIsUploading(false);
-    }
   };
 
   const handleCreateProduct = async () => {
@@ -470,7 +438,7 @@ const AdminProductsPage = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Product Image</Label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2">
                     <Input 
                       type="file" 
                       accept="image/*"
@@ -479,9 +447,8 @@ const AdminProductsPage = () => {
                         imageFile: e.target.files?.[0] || null
                       })}
                     />
-                    <p className="text-xs text-muted-foreground mt-0.5">or</p>
                     <Input 
-                      placeholder="Image URL" 
+                      placeholder="or paste Image URL" 
                       value={formState.imageUrl}
                       onChange={e => setFormState({ ...formState, imageUrl: e.target.value })}
                     />
@@ -495,7 +462,13 @@ const AdminProductsPage = () => {
                         src={formState.imageUrl} 
                         alt="Preview" 
                         className="h-20 w-auto object-contain border rounded"
-                        onError={() => toast.error("Invalid image URL")}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          toast.error("Invalid image URL");
+                        }}
+                        onLoad={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'block';
+                        }}
                       />
                     </div>
                   )}
@@ -559,7 +532,7 @@ const AdminProductsPage = () => {
                 disabled={isUploading || createMutation.isPending}
               >
                 {(isUploading || createMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Create Product
+                {isUploading ? 'Uploading...' : createMutation.isPending ? 'Creating...' : 'Create Product'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -661,7 +634,6 @@ const AdminProductsPage = () => {
         </CardContent>
       </Card>
 
-      {/* Edit Product Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
@@ -742,7 +714,7 @@ const AdminProductsPage = () => {
               </div>
               <div className="space-y-2">
                 <Label>Product Image</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2">
                   <Input 
                     type="file" 
                     accept="image/*"
@@ -751,9 +723,8 @@ const AdminProductsPage = () => {
                       imageFile: e.target.files?.[0] || null
                     })}
                   />
-                  <p className="text-xs text-muted-foreground mt-0.5">or</p>
                   <Input 
-                    placeholder="Image URL" 
+                    placeholder="or paste Image URL" 
                     value={formState.imageUrl}
                     onChange={e => setFormState({ ...formState, imageUrl: e.target.value })}
                   />
@@ -767,7 +738,13 @@ const AdminProductsPage = () => {
                       src={formState.imageUrl} 
                       alt="Preview" 
                       className="h-20 w-auto object-contain border rounded"
-                      onError={() => toast.error("Invalid image URL")}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        toast.error("Invalid image URL");
+                      }}
+                      onLoad={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'block';
+                      }}
                     />
                   </div>
                 )}
@@ -833,13 +810,12 @@ const AdminProductsPage = () => {
               disabled={isUploading || updateMutation.isPending}
             >
               {(isUploading || updateMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Update Product
+              {isUploading ? 'Uploading...' : updateMutation.isPending ? 'Updating...' : 'Update Product'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Product Dialog */}
       <AlertDialog open={!!productToDelete} onOpenChange={() => setProductToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -864,3 +840,4 @@ const AdminProductsPage = () => {
 };
 
 export default AdminProductsPage;
+
