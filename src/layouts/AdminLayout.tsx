@@ -1,6 +1,6 @@
 
-import { useState, useEffect } from "react";
-import { Outlet, useLocation, Link, useNavigate } from "react-router-dom";
+import { useState, useEffect, ReactNode } from "react";
+import { useLocation, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { 
   LayoutDashboard, 
@@ -26,7 +26,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-const AdminLayout = () => {
+interface AdminLayoutProps {
+  children: ReactNode;
+}
+
+const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -179,7 +183,7 @@ const AdminLayout = () => {
         
         {/* Page content */}
         <main className="flex-1 overflow-x-hidden p-6 bg-gray-50/50">
-          <Outlet />
+          {children}
         </main>
       </div>
     </div>
