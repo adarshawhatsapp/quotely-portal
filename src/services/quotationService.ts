@@ -1,4 +1,6 @@
+
 import { supabase } from "@/integrations/supabase/client";
+import { companyDetails as defaultCompanyDetails } from "@/utils/quotationUtils";
 
 // Types for quotation items
 export interface QuoteItem {
@@ -13,6 +15,7 @@ export interface QuoteItem {
   image?: string | null;
   type: 'product' | 'spare';
   customization?: string | null;
+  description?: string | null;
   parentProductId?: string | null; // For spare parts that are attached to a product
 }
 
@@ -92,14 +95,6 @@ export const getQuotationById = async (id: string): Promise<Quotation> => {
   return data;
 };
 
-// Company details for all quotations
-const defaultCompanyDetails: CompanyDetails = {
-  name: "Magnific Designer Fans & Lights",
-  bank_name: "HDFC Bank",
-  account_no: "543210000012345",
-  ifsc_code: "HDFC0000123"
-};
-
 // Create new quotation
 export const createQuotation = async (
   items: QuoteItem[],
@@ -127,8 +122,9 @@ export const createQuotation = async (
     modelNumber: item.modelNumber || null,
     quantity: item.quantity,
     price: item.price,
-    discountedPrice: item.discountedPrice || item.price,
+    discountedPrice: item.discountedPrice,
     customization: item.customization || null,
+    description: item.description || null,
     total: item.total,
     image: item.image || null,
     type: item.type,

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,6 +35,8 @@ import {
 import { toast } from "sonner";
 import { getQuotationById, updateQuotationStatus } from "@/services/quotationService";
 import { useAuth } from "@/context/AuthContext";
+import PrintableQuotation from "@/components/PrintableQuotation";
+import { printQuotation, generatePDF } from "@/utils/quotationUtils";
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -56,6 +59,7 @@ const QuotationDetailPage = () => {
   
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [showPrintView, setShowPrintView] = useState(false);
 
   const { data: quotation, isLoading, error } = useQuery({
     queryKey: ['quotation', id],
@@ -99,13 +103,44 @@ const QuotationDetailPage = () => {
     toast.success("Quotation emailed to customer");
   };
 
-  const handleDownload = () => {
-    toast.success("Quotation PDF downloaded");
+  const handleDownload = async () => {
+    if (!quotation) return;
+    
+    // Show the print view first (which is hidden by default)
+    setShowPrintView(true);
+    
+    // Wait for the component to render
+    setTimeout(async () => {
+      const success = await generatePDF();
+      
+      if (success) {
+        toast.success("Quotation PDF downloaded");
+      } else {
+        toast.error("Failed to download PDF");
+      }
+      
+      // Hide the print view
+      setShowPrintView(false);
+    }, 100);
   };
 
   const handlePrint = () => {
-    toast.success("Sending to printer...");
-    window.print();
+    if (!quotation) return;
+    
+    // Show the print view
+    setShowPrintView(true);
+    
+    // Wait for the component to render
+    setTimeout(() => {
+      printQuotation();
+      
+      // Hide the print view after a delay
+      setTimeout(() => {
+        setShowPrintView(false);
+      }, 1000);
+    }, 100);
+    
+    toast.success("Printing quotation...");
   };
 
   if (isLoading) {
@@ -138,6 +173,11 @@ const QuotationDetailPage = () => {
         </div>
       </div>
     );
+  }
+  
+  // Hidden print view (only visible when printing or generating PDF)
+  if (showPrintView) {
+    return <PrintableQuotation quotation={quotation} />;
   }
 
   return (
@@ -262,7 +302,7 @@ const QuotationDetailPage = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Quotation Summary</CardTitle>
+            <CardTitle className="text-lg">Payment Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -274,14 +314,6 @@ const QuotationDetailPage = () => {
                   day: 'numeric'
                 })}
               </div>
-              <div className="text-sm text-muted-foreground">
-                {new Date(quotation.created_at).toLocaleTimeString()}
-              </div>
-            </div>
-
-            <div>
-              <h4 className="text-sm font-medium text-muted-foreground mb-1">Items</h4>
-              <div className="font-medium">{quotation.items.length} products</div>
             </div>
 
             <div>
@@ -317,10 +349,11 @@ const QuotationDetailPage = () => {
                 <tr className="border-b text-left">
                   <th className="pb-2 font-medium text-sm text-muted-foreground w-12">No.</th>
                   <th className="pb-2 font-medium text-sm text-muted-foreground">Product</th>
-                  <th className="pb-2 font-medium text-sm text-muted-foreground">Model</th>
-                  <th className="pb-2 font-medium text-sm text-muted-foreground">Customization</th>
-                  <th className="pb-2 font-medium text-sm text-muted-foreground text-right">Price</th>
+                  <th className="pb-2 font-medium text-sm text-muted-foreground">Photo</th>
+                  <th className="pb-2 font-medium text-sm text-muted-foreground">Description</th>
                   <th className="pb-2 font-medium text-sm text-muted-foreground text-center">Qty</th>
+                  <th className="pb-2 font-medium text-sm text-muted-foreground text-right">Price</th>
+                  <th className="pb-2 font-medium text-sm text-muted-foreground text-right">Discounted</th>
                   <th className="pb-2 font-medium text-sm text-muted-foreground text-right">Total</th>
                 </tr>
               </thead>
@@ -329,19 +362,36 @@ const QuotationDetailPage = () => {
                   <tr key={`${product.id}-${index}`} className="border-b last:border-0">
                     <td className="py-3 align-top text-sm">{index + 1}</td>
                     <td className="py-3 align-top font-medium">{product.name}</td>
-                    <td className="py-3 align-top text-sm">{product.modelNumber}</td>
+                    <td className="py-3 align-top">
+                      {product.image ? (
+                        <div className="w-12 h-12 overflow-hidden rounded">
+                          <img 
+                            src={product.image} 
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                          <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                    </td>
                     <td className="py-3 align-top text-sm">
-                      {product.customization || "—"}
+                      {product.description || product.customization || "—"}
+                    </td>
+                    <td className="py-3 align-top text-sm text-center">{product.quantity}</td>
+                    <td className="py-3 align-top text-sm text-right">
+                      ₹{product.price.toLocaleString()}
                     </td>
                     <td className="py-3 align-top text-sm text-right">
                       ₹{product.discountedPrice.toLocaleString()}
                       {product.price !== product.discountedPrice && (
-                        <div className="text-xs text-muted-foreground line-through">
-                          ₹{product.price.toLocaleString()}
+                        <div className="text-xs text-green-600">
+                          (Save: ₹{(product.price - product.discountedPrice).toLocaleString()})
                         </div>
                       )}
                     </td>
-                    <td className="py-3 align-top text-sm text-center">{product.quantity}</td>
                     <td className="py-3 align-top font-medium text-right">
                       ₹{product.total.toLocaleString()}
                     </td>
@@ -350,17 +400,17 @@ const QuotationDetailPage = () => {
               </tbody>
               <tfoot>
                 <tr className="border-t">
-                  <td colSpan={5} className="pt-3"></td>
+                  <td colSpan={6} className="pt-3"></td>
                   <td className="pt-3 text-right text-sm font-medium">Subtotal:</td>
                   <td className="pt-3 text-right font-medium">₹{quotation.subtotal.toLocaleString()}</td>
                 </tr>
                 <tr>
-                  <td colSpan={5}></td>
+                  <td colSpan={6}></td>
                   <td className="py-1 text-right text-sm font-medium">GST (18%):</td>
                   <td className="py-1 text-right font-medium">₹{quotation.gst.toLocaleString()}</td>
                 </tr>
                 <tr className="border-t">
-                  <td colSpan={5}></td>
+                  <td colSpan={6}></td>
                   <td className="pt-2 text-right text-sm font-bold">Total:</td>
                   <td className="pt-2 text-right font-bold text-lg">₹{quotation.total.toLocaleString()}</td>
                 </tr>
@@ -374,13 +424,24 @@ const QuotationDetailPage = () => {
         <CardHeader>
           <CardTitle className="text-lg">Terms & Conditions</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm text-muted-foreground">
-          <p>1. This quotation is valid for 30 days from the date of issue.</p>
-          <p>2. All prices are in Indian Rupees (₹) and include GST at 18%.</p>
-          <p>3. Delivery time: 4-6 weeks from confirmation of order and payment.</p>
-          <p>4. Payment terms: 50% advance payment, balance before delivery.</p>
-          <p>5. Installation charges may apply and will be quoted separately if required.</p>
-          <p>6. Warranty: 1 year manufacturer's warranty on all products against manufacturing defects.</p>
+        <CardContent>
+          <ol className="list-decimal pl-6 space-y-2 text-sm text-muted-foreground">
+            <li>Validity: 15 Days from the date of quotation.</li>
+            <li>Payment: 30% of advance to be paid while booking, 100% payment before delivery.</li>
+            <li>Company is not responsible for any breakage.</li>
+            <li>Goods once sold cannot be taken back or exchanged.</li>
+            <li>Request you to co-operate until delivery is done.</li>
+            <li>Product should be checked at the time of delivery itself.</li>
+            <li>Bulbs,battery cells for remotes are not included with the purchase of any light & fan fittings.</li>
+            <li>Bulbs are charged additionally.</li>
+            <li>Freight charges exclusive. Installation is chargeable.</li>
+            <li>Rods customisation and clamp customisation charges extra.</li>
+            <li>Installation charges 600 Rs per fans installation if required.</li>
+            <li>One time site visit is free, rest is chargeable at 300 Rs per visit.</li>
+            <li>No drilling, no rod installation. It has to be done by site electrician.</li>
+            <li>We recommend that installation be carried out by a Magnific-trained technician, which would incur a small extra charge.</li>
+            <li>Anchor bolt / Fan Hooks/ Fan Box installations need to be done by customer as per fan points.</li>
+          </ol>
         </CardContent>
       </Card>
     </div>
