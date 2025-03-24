@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -58,14 +57,12 @@ const QuotationDetailPage = () => {
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
 
-  // Fetch quotation
   const { data: quotation, isLoading, error } = useQuery({
     queryKey: ['quotation', id],
     queryFn: () => getQuotationById(id || ''),
     enabled: !!id,
   });
 
-  // Update status mutation
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string, status: 'Approved' | 'Pending' | 'Rejected' }) => 
       updateQuotationStatus(id, status),
@@ -145,7 +142,6 @@ const QuotationDetailPage = () => {
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex items-center gap-2">
           <Link to="/quotations">
@@ -196,7 +192,6 @@ const QuotationDetailPage = () => {
         </div>
       </div>
 
-      {/* Approve Dialog */}
       <AlertDialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -217,7 +212,6 @@ const QuotationDetailPage = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Reject Dialog */}
       <AlertDialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -239,7 +233,6 @@ const QuotationDetailPage = () => {
       </AlertDialog>
 
       <div className="grid md:grid-cols-3 gap-6">
-        {/* Customer Information */}
         <Card className="md:col-span-2">
           <CardHeader>
             <div className="flex justify-between items-start">
@@ -267,7 +260,6 @@ const QuotationDetailPage = () => {
           </CardContent>
         </Card>
 
-        {/* Quotation Summary */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Quotation Summary</CardTitle>
@@ -314,7 +306,6 @@ const QuotationDetailPage = () => {
         </Card>
       </div>
 
-      {/* Product Details */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Products</CardTitle>
@@ -379,7 +370,6 @@ const QuotationDetailPage = () => {
         </CardContent>
       </Card>
 
-      {/* Terms and Conditions */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Terms & Conditions</CardTitle>

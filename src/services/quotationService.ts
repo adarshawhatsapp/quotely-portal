@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 // Types for quotation items
@@ -9,9 +8,11 @@ export interface QuoteItem {
   area?: string;
   quantity: number;
   price: number;
+  discountedPrice: number;
   total: number;
   image?: string | null;
   type: 'product' | 'spare';
+  customization?: string | null;
   parentProductId?: string | null; // For spare parts that are attached to a product
 }
 
@@ -126,6 +127,8 @@ export const createQuotation = async (
     modelNumber: item.modelNumber || null,
     quantity: item.quantity,
     price: item.price,
+    discountedPrice: item.discountedPrice || item.price,
+    customization: item.customization || null,
     total: item.total,
     image: item.image || null,
     type: item.type,
