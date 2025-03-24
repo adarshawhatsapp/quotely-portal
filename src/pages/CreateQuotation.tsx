@@ -1,3 +1,4 @@
+
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getProducts } from "@/services/productService";
 import { getSpares } from "@/services/spareService";
@@ -140,9 +141,11 @@ const CreateQuotationPage = () => {
       modelNumber: selectedProduct.model_number,
       quantity: quantity,
       price: selectedProduct.price,
+      discountedPrice: selectedProduct.price, // Add the missing discountedPrice property
       total: selectedProduct.price * quantity,
       image: selectedProduct.image,
-      type: activeTab === "products" ? "product" : "spare"
+      type: activeTab === "products" ? "product" : "spare",
+      customization: null // Add the customization property as null by default
     };
     
     setQuoteItems([...quoteItems, newItem]);
