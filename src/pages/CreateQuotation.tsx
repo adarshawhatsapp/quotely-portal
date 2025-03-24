@@ -9,9 +9,9 @@ const CreateQuotationPage = () => {
   const { id } = useParams<{ id: string }>();
   const isEditMode = !!id;
 
-  // We're going to prefetch products and spares data
-  const productsLoading = queryClient.isFetching({queryKey: ['products']});
-  const sparesLoading = queryClient.isFetching({queryKey: ['spares']});
+  // We're going to prefetch products and spares data with the correct queryKey format
+  const productsLoading = queryClient.isFetching({ queryKey: ['products'] });
+  const sparesLoading = queryClient.isFetching({ queryKey: ['spares'] });
   
   if (productsLoading || sparesLoading) {
     return (
