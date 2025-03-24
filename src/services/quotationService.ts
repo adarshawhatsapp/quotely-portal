@@ -5,12 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 export interface QuoteItem {
   id: string;
   name: string;
-  modelNumber: string;
-  area: string;
+  modelNumber?: string;
+  area?: string;
   quantity: number;
   price: number;
-  discountedPrice: number;
-  customization: string;
   total: number;
   image?: string | null;
   type: 'product' | 'spare';
@@ -56,12 +54,15 @@ export interface CompanyDetails {
 
 // Get all quotations
 export const getQuotations = async (): Promise<Quotation[]> => {
+  console.log("Fetching all quotations");
+  
   const { data, error } = await supabase
     .from('quotations')
     .select('*')
     .order('created_at', { ascending: false });
     
   if (error) {
+    console.error("Error fetching quotations:", error);
     throw error;
   }
   
@@ -70,6 +71,8 @@ export const getQuotations = async (): Promise<Quotation[]> => {
 
 // Get quotation by ID
 export const getQuotationById = async (id: string): Promise<Quotation> => {
+  console.log("Fetching quotation by ID:", id);
+  
   const { data, error } = await supabase
     .from('quotations')
     .select('*')
@@ -77,6 +80,7 @@ export const getQuotationById = async (id: string): Promise<Quotation> => {
     .maybeSingle();
     
   if (error) {
+    console.error("Error fetching quotation by ID:", error);
     throw error;
   }
   
@@ -103,23 +107,40 @@ export const createQuotation = async (
   gst: number,
   total: number
 ): Promise<Quotation> => {
+  console.log("Creating quotation:", { items, customerInfo, subtotal, gst, total });
+  
   const { data: userData, error: userError } = await supabase.auth.getUser();
   
   if (userError) {
+    console.error("Error getting user:", userError);
     throw userError;
   }
   
   const userId = userData.user.id;
   
+  // Ensure that no null values are submitted to Supabase for required fields
+  // Clean the items to ensure they match our database schema
+  const cleanItems = items.map(item => ({
+    id: item.id,
+    name: item.name,
+    modelNumber: item.modelNumber || null,
+    quantity: item.quantity,
+    price: item.price,
+    total: item.total,
+    image: item.image || null,
+    type: item.type,
+    parentProductId: item.parentProductId || null
+  }));
+  
   const { data, error } = await supabase
     .from('quotations')
     .insert([{
       customer_name: customerInfo.name,
-      customer_email: customerInfo.email,
-      customer_phone: customerInfo.phone,
-      customer_address: customerInfo.address,
+      customer_email: customerInfo.email || null,
+      customer_phone: customerInfo.phone || null,
+      customer_address: customerInfo.address || null,
       customer_id: customerInfo.id || null,
-      items: items,
+      items: cleanItems,
       subtotal: subtotal,
       gst: gst,
       total: total,
@@ -130,6 +151,7 @@ export const createQuotation = async (
     .single();
     
   if (error) {
+    console.error("Error creating quotation:", error);
     throw error;
   }
   
@@ -138,6 +160,8 @@ export const createQuotation = async (
 
 // Update quotation status
 export const updateQuotationStatus = async (id: string, status: 'Pending' | 'Approved' | 'Rejected'): Promise<Quotation> => {
+  console.log("Updating quotation status:", id, status);
+  
   const { data, error } = await supabase
     .from('quotations')
     .update({ status })
@@ -146,6 +170,7 @@ export const updateQuotationStatus = async (id: string, status: 'Pending' | 'App
     .single();
     
   if (error) {
+    console.error("Error updating quotation status:", error);
     throw error;
   }
   
@@ -154,12 +179,15 @@ export const updateQuotationStatus = async (id: string, status: 'Pending' | 'App
 
 // Delete quotation
 export const deleteQuotation = async (id: string): Promise<void> => {
+  console.log("Deleting quotation:", id);
+  
   const { error } = await supabase
     .from('quotations')
     .delete()
     .eq('id', id);
     
   if (error) {
+    console.error("Error deleting quotation:", error);
     throw error;
   }
 };

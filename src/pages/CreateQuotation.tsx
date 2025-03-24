@@ -1,8 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getProducts } from "@/services/productService";
 import { getSpares } from "@/services/spareService";
+import { createQuotation, CustomerInfo, QuoteItem } from "@/services/quotationService";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Card, 
@@ -29,7 +30,8 @@ import {
   ChevronRight,
   User,
   FileText,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from "lucide-react";
 import { 
   Dialog,
@@ -56,31 +58,6 @@ import {
 } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
-
-
-
-
-
-
-type QuoteItem = {
-  id: string;
-  name: string;
-  model_number: string;
-  quantity: number;
-  price: number;
-  discounted_price: number;
-  customization: string;
-  total: number;
-};
-
-type CustomerInfo = {
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-}
-
-  
 const calculateTotals = (items: QuoteItem[]) => {
   const subtotal = items.reduce((acc, item) => acc + item.total, 0);
   const gst = subtotal * 0.18;
@@ -90,7 +67,6 @@ const calculateTotals = (items: QuoteItem[]) => {
 };
 
 const CreateQuotationPage = () => {
-  
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -98,15 +74,11 @@ const CreateQuotationPage = () => {
   const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
-  const [selectedCustomization, setSelectedCustomization] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("products");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  
-  
-
-
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
     name: "",
     email: "",
@@ -116,48 +88,48 @@ const CreateQuotationPage = () => {
   
   const { subtotal, gst, total } = calculateTotals(quoteItems);
 
- // Fetch products and spares from Supabase
- const { data: products = [], isLoading: isLoadingProducts, error: productsError } = useQuery({
-  queryKey: ['products'],
-  queryFn: getProducts,
-});
+  // Fetch products and spares from Supabase
+  const { data: products = [], isLoading: isLoadingProducts, error: productsError } = useQuery({
+    queryKey: ['products'],
+    queryFn: getProducts,
+  });
 
-const { data: spares = [], isLoading: isLoadingSpares, error: sparesError } = useQuery({
-  queryKey: ['spares'],
-  queryFn: getSpares,
-});
+  const { data: spares = [], isLoading: isLoadingSpares, error: sparesError } = useQuery({
+    queryKey: ['spares'],
+    queryFn: getSpares,
+  });
 
-// Handle loading and errors
-if (isLoadingProducts || isLoadingSpares) {
-  return (
-    <div className="flex items-center justify-center h-64">
-      
-      <span className="ml-2">Loading products and spares...</span>
-    </div>
+  // Handle loading and errors
+  if (isLoadingProducts || isLoadingSpares) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Loading products and spares...</span>
+      </div>
+    );
+  }
+
+  if (productsError || sparesError) {
+    return (
+      <div className="p-8 text-center">
+        <h3 className="text-xl font-semibold text-red-500 mb-2">Error Loading Data</h3>
+        <p className="text-gray-500">{(productsError as Error)?.message || (sparesError as Error)?.message}</p>
+        <Button onClick={() => {
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+          queryClient.invalidateQueries({ queryKey: ['spares'] });
+        }}>Retry</Button>
+      </div>
+    );
+  }
+
+  // Filter products and spares based on search query
+  const filteredProducts = products.filter(product => 
+    product.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
-}
 
-if (productsError || sparesError) {
-  return (
-    <div className="p-8 text-center">
-      <h3 className="text-xl font-semibold text-red-500 mb-2">Error Loading Data</h3>
-      <p className="text-gray-500">{productsError?.message || sparesError?.message}</p>
-      <Button onClick={() => {
-        queryClient.invalidateQueries(['products']);
-        queryClient.invalidateQueries(['spares']);
-      }}>Retry</Button>
-    </div>
+  const filteredSpares = spares.filter(spare => 
+    spare.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
-}
-
-// Filter products and spares based on search query
-const filteredProducts = products.filter(product => 
-  product.name.toLowerCase().includes(searchQuery.toLowerCase())
-);
-
-const filteredSpares = spares.filter(spare => 
-  spare.name.toLowerCase().includes(searchQuery.toLowerCase())
-);
 
   const handleAddToQuote = () => {
     if (!selectedProduct) return;
@@ -165,19 +137,18 @@ const filteredSpares = spares.filter(spare =>
     const newItem: QuoteItem = {
       id: selectedProduct.id,
       name: selectedProduct.name,
-      model_number: selectedProduct.model_number,
+      modelNumber: selectedProduct.model_number,
       quantity: quantity,
       price: selectedProduct.price,
-      discounted_price: selectedProduct.discounted_price,
-      customization: selectedCustomization,
-      total: selectedProduct.discounted_price * quantity
+      total: selectedProduct.price * quantity,
+      image: selectedProduct.image,
+      type: activeTab === "products" ? "product" : "spare"
     };
     
     setQuoteItems([...quoteItems, newItem]);
     
     // Reset state
     setSelectedProduct(null);
-    setSelectedCustomization("");
     setQuantity(1);
     setIsAddItemDialogOpen(false);
     
@@ -192,7 +163,6 @@ const filteredSpares = spares.filter(spare =>
   
   const handleSelectProduct = (product: any) => {
     setSelectedProduct(product);
-    setSelectedCustomization(product.customizations && product.customizations.length > 0 ? product.customizations[0] : "");
   };
   
   const handleUpdateItemQuantity = (index: number, newQuantity: number) => {
@@ -200,7 +170,7 @@ const filteredSpares = spares.filter(spare =>
     
     const updatedItems = [...quoteItems];
     updatedItems[index].quantity = newQuantity;
-    updatedItems[index].total = updatedItems[index].discounted_price * newQuantity;
+    updatedItems[index].total = updatedItems[index].price * newQuantity;
     
     setQuoteItems(updatedItems);
   };
@@ -226,17 +196,35 @@ const filteredSpares = spares.filter(spare =>
     setCurrentStep(currentStep - 1);
   };
   
-  const handleCreateQuote = () => {
-    // In a real app, this would send the data to the server
-    toast.success("Quotation created successfully!");
-    
-    // Generate a new quotation ID
-    const newQuoteId = `Q-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
-    
-    // Navigate to the new quotation
-    setTimeout(() => {
-      navigate(`/quotations/${newQuoteId}`);
-    }, 1000);
+  const handleCreateQuote = async () => {
+    try {
+      setIsSubmitting(true);
+      
+      console.log("Creating quotation with items:", quoteItems);
+      console.log("Customer info:", customerInfo);
+      console.log("Financial details:", { subtotal, gst, total });
+      
+      // Create the quotation in the database
+      const quotation = await createQuotation(
+        quoteItems,
+        customerInfo,
+        subtotal,
+        gst,
+        total
+      );
+      
+      toast.success("Quotation created successfully!");
+      
+      // Navigate to the new quotation
+      setTimeout(() => {
+        navigate(`/quotations/${quotation.id}`);
+      }, 1000);
+    } catch (error) {
+      console.error("Error creating quotation:", error);
+      toast.error(`Failed to create quotation: ${(error as Error).message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const renderStepContent = () => {
@@ -295,22 +283,19 @@ const filteredSpares = spares.filter(spare =>
                               onClick={() => handleSelectProduct(product)}
                             >
                               <div className="h-12 w-12 rounded bg-gray-100 overflow-hidden mr-3 flex-shrink-0">
-                                <img 
-                                  src={product.image} 
-                                  alt={product.name}
-                                  className="w-full h-full object-cover"
-                                />
+                                {product.image && (
+                                  <img 
+                                    src={product.image} 
+                                    alt={product.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                )}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="font-medium">{product.name}</div>
                                 <div className="text-xs text-muted-foreground">{product.model_number}</div>
                                 <div className="mt-1 flex items-baseline gap-1">
-                                  <span className="font-medium">₹{product?.price ? product.price.toLocaleString() : "N/A"}</span>
-                                  {product.price !== product.discounted_price && (
-                                    <span className="text-xs text-muted-foreground line-through">
-                                      ₹{product.price.toLocaleString()}
-                                    </span>
-                                  )}
+                                  <span className="font-medium">₹{product.price.toLocaleString()}</span>
                                 </div>
                               </div>
                             </div>
@@ -342,11 +327,6 @@ const filteredSpares = spares.filter(spare =>
                                 <div className="text-xs text-muted-foreground">{spare.id}</div>
                                 <div className="mt-1 flex items-baseline gap-1">
                                   <span className="font-medium">₹{spare.price.toLocaleString()}</span>
-                                  {spare.price !== spare.price && (
-                                    <span className="text-xs text-muted-foreground line-through">
-                                      ₹{spare.price.toLocaleString()}
-                                    </span>
-                                  )}
                                 </div>
                                 <div className="text-xs text-muted-foreground mt-1">
                                   In Stock: {spare.stock}
@@ -373,37 +353,11 @@ const filteredSpares = spares.filter(spare =>
                             <p className="text-sm text-muted-foreground mt-1">{selectedProduct.model_number}</p>
                           </div>
                           <div className="text-right">
-                            <div className="font-medium">₹{ selectedProduct?.discounted_price? selectedProduct.discounted_price.toLocaleString(): "N/A"}</div>
-                            {selectedProduct.price !== selectedProduct.discounted_price && (
-                              <div className="text-xs text-muted-foreground line-through">
-                                ₹{selectedProduct.price.toLocaleString()}
-                              </div>
-                            )}
+                            <div className="font-medium">₹{selectedProduct.price.toLocaleString()}</div>
                           </div>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-4">
-                          {selectedProduct.customizations && selectedProduct.customizations.length > 0 && (
-                            <div className="space-y-2">
-                              <Label htmlFor="customization">Customization</Label>
-                              <Select
-                                value={selectedCustomization}
-                                onValueChange={setSelectedCustomization}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select customization" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {selectedProduct.customizations.map((option: string) => (
-                                    <SelectItem key={option} value={option}>
-                                      {option}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-                          
                           <div className="space-y-2">
                             <Label htmlFor="quantity">Quantity</Label>
                             <div className="flex items-center">
@@ -440,7 +394,7 @@ const filteredSpares = spares.filter(spare =>
                         <div className="flex justify-between items-center pt-2">
                           <span className="font-medium">Total</span>
                           <span className="text-lg font-bold">
-                            ₹{(selectedProduct.discounted_price * quantity).toLocaleString()}
+                            ₹{(selectedProduct.price * quantity).toLocaleString()}
                           </span>
                         </div>
                       </div>
@@ -481,8 +435,8 @@ const filteredSpares = spares.filter(spare =>
                         <tr className="border-b text-left">
                           <th className="pb-2 font-medium text-sm text-muted-foreground w-12">No.</th>
                           <th className="pb-2 font-medium text-sm text-muted-foreground">Product</th>
+                          <th className="pb-2 font-medium text-sm text-muted-foreground">Type</th>
                           <th className="pb-2 font-medium text-sm text-muted-foreground">Model</th>
-                          <th className="pb-2 font-medium text-sm text-muted-foreground">Customization</th>
                           <th className="pb-2 font-medium text-sm text-muted-foreground text-right">Price</th>
                           <th className="pb-2 font-medium text-sm text-muted-foreground text-center">Qty</th>
                           <th className="pb-2 font-medium text-sm text-muted-foreground text-right">Total</th>
@@ -494,17 +448,12 @@ const filteredSpares = spares.filter(spare =>
                           <tr key={`${item.id}-${index}`} className="border-b last:border-0">
                             <td className="py-3 align-top text-sm">{index + 1}</td>
                             <td className="py-3 align-top font-medium">{item.name}</td>
-                            <td className="py-3 align-top text-sm">{item.model_number}</td>
                             <td className="py-3 align-top text-sm">
-                              {item.customization || "—"}
+                              <Badge variant="outline">{item.type}</Badge>
                             </td>
+                            <td className="py-3 align-top text-sm">{item.modelNumber || "—"}</td>
                             <td className="py-3 align-top text-sm text-right">
-                              ₹{item?.discounted_price ?  item.discounted_price.toLocaleString() : "N/A"}
-                              {item.price !== item.discounted_price && (
-                                <div className="text-xs text-muted-foreground line-through">
-                                  ₹{item?.price ? item.price.toLocaleString(): "N/A"}
-                                </div>
-                              )}
+                              ₹{item.price.toLocaleString()}
                             </td>
                             <td className="py-3 align-top text-sm text-center">
                               <div className="flex items-center justify-center">
@@ -718,14 +667,12 @@ const filteredSpares = spares.filter(spare =>
                         <div>
                           <div className="font-medium">
                             {item.name}
-                            {item.customization && (
-                              <Badge variant="outline" className="ml-2 font-normal text-xs">
-                                {item.customization}
-                              </Badge>
-                            )}
+                            <Badge variant="outline" className="ml-2 font-normal text-xs">
+                              {item.type}
+                            </Badge>
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {item.quantity} x ₹{item.discounted_price.toLocaleString()}
+                            {item.quantity} x ₹{item.price.toLocaleString()}
                           </div>
                         </div>
                         <div className="font-medium">₹{item.total.toLocaleString()}</div>
@@ -856,9 +803,19 @@ const filteredSpares = spares.filter(spare =>
           <Button 
             className="gap-2"
             onClick={handleCreateQuote}
+            disabled={isSubmitting}
           >
-            <CheckCircle className="h-4 w-4" />
-            <span>Create Quotation</span>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Creating...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle className="h-4 w-4" />
+                <span>Create Quotation</span>
+              </>
+            )}
           </Button>
         )}
       </div>
