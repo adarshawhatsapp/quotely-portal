@@ -18,7 +18,7 @@ export const getSpares = async (): Promise<Spare[]> => {
     .order('name');
     
   if (error) {
-    throw error;
+    throw error; 
   }
   
   return data;

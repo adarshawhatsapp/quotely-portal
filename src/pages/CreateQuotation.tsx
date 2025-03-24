@@ -1,3 +1,6 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getProducts } from "@/services/productService";
+import { getSpares } from "@/services/spareService";
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -53,115 +56,19 @@ import {
 } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
-// Mock products to choose from
-const availableProducts = [
-  {
-    id: "1",
-    name: "Crystal Chandelier",
-    modelNumber: "CC-2023-01",
-    category: "Chandelier",
-    price: 45000,
-    discountedPrice: 39999,
-    image: "https://images.unsplash.com/photo-1543161949-1f9193812ce8?q=80&w=200&h=200&auto=format&fit=crop",
-    description: "Luxury crystal chandelier with intricate design, perfect for large halls and reception areas.",
-    customizations: ["Gold finish", "Silver finish", "Bronze finish"]
-  },
-  {
-    id: "2",
-    name: "Modern Pendant Light",
-    modelNumber: "PL-2023-42",
-    category: "Pendant",
-    price: 12500,
-    discountedPrice: 10999,
-    image: "https://images.unsplash.com/photo-1540932239986-30128078f3c5?q=80&w=200&h=200&auto=format&fit=crop",
-    description: "Sleek modern pendant light with adjustable height and brightness.",
-    customizations: ["Black", "White", "Copper"]
-  },
-  {
-    id: "3",
-    name: "Wall Sconce Pair",
-    modelNumber: "WS-2023-15",
-    category: "Wall Light",
-    price: 8500,
-    discountedPrice: 7999,
-    image: "https://images.unsplash.com/photo-1507465692364-fad85760a698?q=80&w=200&h=200&auto=format&fit=crop",
-    description: "Elegant wall sconces sold as a pair, with warm ambient lighting effect.",
-    customizations: ["Chrome", "Matte Black", "Brushed Nickel"]
-  },
-  {
-    id: "4",
-    name: "LED Ceiling Fixture",
-    modelNumber: "LC-2023-08",
-    category: "Ceiling",
-    price: 18500,
-    discountedPrice: 16499,
-    image: "https://images.unsplash.com/photo-1565814329452-e1efa11c5b89?q=80&w=200&h=200&auto=format&fit=crop",
-    description: "Energy-efficient LED ceiling fixture with color temperature adjustment.",
-    customizations: ["Round", "Square", "Dimmable"]
-  }
-];
 
-// Mock spares to choose from
-const availableSpares = [
-  {
-    id: "SP001",
-    name: "Crystal Droplet",
-    modelNumber: "Spare Parts",
-    price: 850,
-    discountedPrice: 850,
-    stock: 120,
-    description: "Replacement crystal droplets for chandeliers.",
-    customizations: []
-  },
-  {
-    id: "SP002",
-    name: "LED Bulb (Warm White)",
-    modelNumber: "Spare Parts",
-    price: 350,
-    discountedPrice: 350,
-    stock: 240,
-    description: "Energy-efficient LED bulbs with warm white color temperature.",
-    customizations: []
-  },
-  {
-    id: "SP003",
-    name: "Pendant Cable (2m)",
-    modelNumber: "Spare Parts",
-    price: 550,
-    discountedPrice: 550,
-    stock: 85,
-    description: "2-meter suspension cable for pendant lights.",
-    customizations: []
-  },
-  {
-    id: "SP004",
-    name: "Canopy Cover",
-    modelNumber: "Spare Parts",
-    price: 1200,
-    discountedPrice: 1200,
-    stock: 48,
-    description: "Ceiling canopy cover for pendant and chandelier installations.",
-    customizations: []
-  },
-  {
-    id: "SP007",
-    name: "Dimmer Switch",
-    modelNumber: "Spare Parts",
-    price: 750,
-    discountedPrice: 503,
-    stock: 95,
-    description: "Compatible dimmer switch for lighting control.",
-    customizations: []
-  }
-];
+
+
+
+
 
 type QuoteItem = {
   id: string;
   name: string;
-  modelNumber: string;
+  model_number: string;
   quantity: number;
   price: number;
-  discountedPrice: number;
+  discounted_price: number;
   customization: string;
   total: number;
 };
@@ -173,6 +80,7 @@ type CustomerInfo = {
   address: string;
 }
 
+  
 const calculateTotals = (items: QuoteItem[]) => {
   const subtotal = items.reduce((acc, item) => acc + item.total, 0);
   const gst = subtotal * 0.18;
@@ -182,7 +90,10 @@ const calculateTotals = (items: QuoteItem[]) => {
 };
 
 const CreateQuotationPage = () => {
+  
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
   const [currentStep, setCurrentStep] = useState(1);
   const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -192,6 +103,10 @@ const CreateQuotationPage = () => {
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("products");
   
+  
+  
+
+
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
     name: "",
     email: "",
@@ -201,15 +116,48 @@ const CreateQuotationPage = () => {
   
   const { subtotal, gst, total } = calculateTotals(quoteItems);
 
-  const filteredProducts = availableProducts.filter(product => 
-    product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    product.modelNumber.toLowerCase().includes(searchQuery.toLowerCase())
+ // Fetch products and spares from Supabase
+ const { data: products = [], isLoading: isLoadingProducts, error: productsError } = useQuery({
+  queryKey: ['products'],
+  queryFn: getProducts,
+});
+
+const { data: spares = [], isLoading: isLoadingSpares, error: sparesError } = useQuery({
+  queryKey: ['spares'],
+  queryFn: getSpares,
+});
+
+// Handle loading and errors
+if (isLoadingProducts || isLoadingSpares) {
+  return (
+    <div className="flex items-center justify-center h-64">
+      
+      <span className="ml-2">Loading products and spares...</span>
+    </div>
   );
-  
-  const filteredSpares = availableSpares.filter(spare => 
-    spare.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    spare.id.toLowerCase().includes(searchQuery.toLowerCase())
+}
+
+if (productsError || sparesError) {
+  return (
+    <div className="p-8 text-center">
+      <h3 className="text-xl font-semibold text-red-500 mb-2">Error Loading Data</h3>
+      <p className="text-gray-500">{productsError?.message || sparesError?.message}</p>
+      <Button onClick={() => {
+        queryClient.invalidateQueries(['products']);
+        queryClient.invalidateQueries(['spares']);
+      }}>Retry</Button>
+    </div>
   );
+}
+
+// Filter products and spares based on search query
+const filteredProducts = products.filter(product => 
+  product.name.toLowerCase().includes(searchQuery.toLowerCase())
+);
+
+const filteredSpares = spares.filter(spare => 
+  spare.name.toLowerCase().includes(searchQuery.toLowerCase())
+);
 
   const handleAddToQuote = () => {
     if (!selectedProduct) return;
@@ -217,12 +165,12 @@ const CreateQuotationPage = () => {
     const newItem: QuoteItem = {
       id: selectedProduct.id,
       name: selectedProduct.name,
-      modelNumber: selectedProduct.modelNumber,
+      model_number: selectedProduct.model_number,
       quantity: quantity,
       price: selectedProduct.price,
-      discountedPrice: selectedProduct.discountedPrice,
+      discounted_price: selectedProduct.discounted_price,
       customization: selectedCustomization,
-      total: selectedProduct.discountedPrice * quantity
+      total: selectedProduct.discounted_price * quantity
     };
     
     setQuoteItems([...quoteItems, newItem]);
@@ -252,7 +200,7 @@ const CreateQuotationPage = () => {
     
     const updatedItems = [...quoteItems];
     updatedItems[index].quantity = newQuantity;
-    updatedItems[index].total = updatedItems[index].discountedPrice * newQuantity;
+    updatedItems[index].total = updatedItems[index].discounted_price * newQuantity;
     
     setQuoteItems(updatedItems);
   };
@@ -355,10 +303,10 @@ const CreateQuotationPage = () => {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="font-medium">{product.name}</div>
-                                <div className="text-xs text-muted-foreground">{product.modelNumber}</div>
+                                <div className="text-xs text-muted-foreground">{product.model_number}</div>
                                 <div className="mt-1 flex items-baseline gap-1">
-                                  <span className="font-medium">₹{product.discountedPrice.toLocaleString()}</span>
-                                  {product.price !== product.discountedPrice && (
+                                  <span className="font-medium">₹{product?.price ? product.price.toLocaleString() : "N/A"}</span>
+                                  {product.price !== product.discounted_price && (
                                     <span className="text-xs text-muted-foreground line-through">
                                       ₹{product.price.toLocaleString()}
                                     </span>
@@ -393,8 +341,8 @@ const CreateQuotationPage = () => {
                                 <div className="font-medium">{spare.name}</div>
                                 <div className="text-xs text-muted-foreground">{spare.id}</div>
                                 <div className="mt-1 flex items-baseline gap-1">
-                                  <span className="font-medium">₹{spare.discountedPrice.toLocaleString()}</span>
-                                  {spare.price !== spare.discountedPrice && (
+                                  <span className="font-medium">₹{spare.price.toLocaleString()}</span>
+                                  {spare.price !== spare.price && (
                                     <span className="text-xs text-muted-foreground line-through">
                                       ₹{spare.price.toLocaleString()}
                                     </span>
@@ -422,11 +370,11 @@ const CreateQuotationPage = () => {
                         <div className="flex justify-between items-start">
                           <div>
                             <h4 className="font-medium">{selectedProduct.name}</h4>
-                            <p className="text-sm text-muted-foreground mt-1">{selectedProduct.modelNumber}</p>
+                            <p className="text-sm text-muted-foreground mt-1">{selectedProduct.model_number}</p>
                           </div>
                           <div className="text-right">
-                            <div className="font-medium">₹{selectedProduct.discountedPrice.toLocaleString()}</div>
-                            {selectedProduct.price !== selectedProduct.discountedPrice && (
+                            <div className="font-medium">₹{ selectedProduct?.discounted_price? selectedProduct.discounted_price.toLocaleString(): "N/A"}</div>
+                            {selectedProduct.price !== selectedProduct.discounted_price && (
                               <div className="text-xs text-muted-foreground line-through">
                                 ₹{selectedProduct.price.toLocaleString()}
                               </div>
@@ -492,7 +440,7 @@ const CreateQuotationPage = () => {
                         <div className="flex justify-between items-center pt-2">
                           <span className="font-medium">Total</span>
                           <span className="text-lg font-bold">
-                            ₹{(selectedProduct.discountedPrice * quantity).toLocaleString()}
+                            ₹{(selectedProduct.discounted_price * quantity).toLocaleString()}
                           </span>
                         </div>
                       </div>
@@ -546,15 +494,15 @@ const CreateQuotationPage = () => {
                           <tr key={`${item.id}-${index}`} className="border-b last:border-0">
                             <td className="py-3 align-top text-sm">{index + 1}</td>
                             <td className="py-3 align-top font-medium">{item.name}</td>
-                            <td className="py-3 align-top text-sm">{item.modelNumber}</td>
+                            <td className="py-3 align-top text-sm">{item.model_number}</td>
                             <td className="py-3 align-top text-sm">
                               {item.customization || "—"}
                             </td>
                             <td className="py-3 align-top text-sm text-right">
-                              ₹{item.discountedPrice.toLocaleString()}
-                              {item.price !== item.discountedPrice && (
+                              ₹{item?.discounted_price ?  item.discounted_price.toLocaleString() : "N/A"}
+                              {item.price !== item.discounted_price && (
                                 <div className="text-xs text-muted-foreground line-through">
-                                  ₹{item.price.toLocaleString()}
+                                  ₹{item?.price ? item.price.toLocaleString(): "N/A"}
                                 </div>
                               )}
                             </td>
@@ -777,7 +725,7 @@ const CreateQuotationPage = () => {
                             )}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {item.quantity} x ₹{item.discountedPrice.toLocaleString()}
+                            {item.quantity} x ₹{item.discounted_price.toLocaleString()}
                           </div>
                         </div>
                         <div className="font-medium">₹{item.total.toLocaleString()}</div>
