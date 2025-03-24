@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Trash, Minus, Plus, Edit } from "lucide-react";
+import { Trash, Minus, Plus, Edit, Check } from "lucide-react";
 import { QuoteItem } from "@/services/quotationService";
 
 interface QuotationItemCardProps {

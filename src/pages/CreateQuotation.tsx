@@ -7,8 +7,8 @@ const CreateQuotationPage = () => {
   const queryClient = useQueryClient();
 
   // We're going to prefetch products and spares data
-  const productsLoading = queryClient.isFetching(['products']);
-  const sparesLoading = queryClient.isFetching(['spares']);
+  const productsLoading = queryClient.isFetching({queryKey: ['products']});
+  const sparesLoading = queryClient.isFetching({queryKey: ['spares']});
   
   if (productsLoading || sparesLoading) {
     return (

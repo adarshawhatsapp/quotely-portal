@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, AlertCircle, ShoppingCart, Plus, Check } from "lucide-react";
+import { Search, AlertCircle, ShoppingCart, Plus, Minus, Check } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getProducts } from "@/services/productService";
 import { getSpares } from "@/services/spareService";
