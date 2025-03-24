@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -65,43 +64,45 @@ const CreateQuotationForm = () => {
     address: ""
   });
   
-  // Fetch quotation data if in edit mode
   const { data: quotationData, isLoading: isLoadingQuotation } = useQuery({
     queryKey: ['quotation', id],
     queryFn: () => getQuotationById(id || ''),
     enabled: isEditMode,
-    onSuccess: (data) => {
-      setQuoteItems(data.items);
+  });
+  
+  useEffect(() => {
+    if (quotationData) {
+      setQuoteItems(quotationData.items);
       setCustomerInfo({
-        name: data.customer_name,
-        email: data.customer_email || "",
-        phone: data.customer_phone || "",
-        address: data.customer_address || ""
+        name: quotationData.customer_name,
+        email: quotationData.customer_email || "",
+        phone: quotationData.customer_phone || "",
+        address: quotationData.customer_address || ""
       });
-    },
-    onError: (error) => {
-      console.error("Error fetching quotation:", error);
+    }
+  }, [quotationData]);
+  
+  useEffect(() => {
+    if (isEditMode && !isLoadingQuotation && !quotationData) {
+      console.error("Error fetching quotation: No data returned");
       toast.error("Failed to load quotation data");
       navigate("/quotations");
     }
-  });
+  }, [isEditMode, isLoadingQuotation, quotationData, navigate]);
   
   const { subtotal, gst, total } = calculateTotals(quoteItems);
 
-  // Handle adding a new item to the quote
   const handleAddItem = (item: QuoteItem) => {
     setQuoteItems([...quoteItems, item]);
     toast.success(`${item.name} added to quote`);
   };
   
-  // Handle removing an item from the quote
   const handleRemoveItem = (indexToRemove: number) => {
     const itemName = quoteItems[indexToRemove].name;
     setQuoteItems(quoteItems.filter((_, index) => index !== indexToRemove));
     toast.info(`${itemName} removed from quote`);
   };
   
-  // Handle updating an item's quantity
   const handleUpdateItemQuantity = (index: number, quantity: number) => {
     if (quantity < 1) return;
     
@@ -112,7 +113,6 @@ const CreateQuotationForm = () => {
     setQuoteItems(updatedItems);
   };
   
-  // Handle updating an item's discounted price
   const handleUpdateItemDiscount = (index: number, discountedPrice: number) => {
     const updatedItems = [...quoteItems];
     updatedItems[index].discountedPrice = discountedPrice;
@@ -122,7 +122,6 @@ const CreateQuotationForm = () => {
     toast.success(`Discount applied to ${updatedItems[index].name}`);
   };
 
-  // Handle updating an item's area
   const handleUpdateItemArea = (index: number, area: string) => {
     const updatedItems = [...quoteItems];
     updatedItems[index].area = area;
@@ -131,7 +130,6 @@ const CreateQuotationForm = () => {
     toast.success(`Area updated for ${updatedItems[index].name}`);
   };
 
-  // Handle navigation between steps
   const handleNextStep = () => {
     if (currentStep === 1 && quoteItems.length === 0) {
       toast.error("Please add at least one item to the quote");
@@ -139,7 +137,6 @@ const CreateQuotationForm = () => {
     }
     
     if (currentStep === 2) {
-      // Validate customer info
       if (!customerInfo.name || !customerInfo.phone) {
         toast.error("Please fill in customer name and phone number");
         return;
@@ -153,7 +150,6 @@ const CreateQuotationForm = () => {
     setCurrentStep(currentStep - 1);
   };
   
-  // Handle creating or updating the quote
   const handleSaveQuote = async () => {
     try {
       setIsSubmitting(true);
@@ -165,7 +161,6 @@ const CreateQuotationForm = () => {
       let quotation;
       
       if (isEditMode) {
-        // Update existing quotation
         quotation = await updateQuotation(
           id!,
           quoteItems,
@@ -176,7 +171,6 @@ const CreateQuotationForm = () => {
         );
         toast.success("Quotation updated successfully!");
       } else {
-        // Create new quotation
         quotation = await createQuotation(
           quoteItems,
           customerInfo,
@@ -187,7 +181,6 @@ const CreateQuotationForm = () => {
         toast.success("Quotation created successfully!");
       }
       
-      // Navigate to the quotation
       setTimeout(() => {
         navigate(`/quotations/${quotation.id}`);
       }, 1000);
@@ -199,17 +192,14 @@ const CreateQuotationForm = () => {
     }
   };
 
-  // Handle PDF generation
   const handleGeneratePDF = async () => {
     setIsPdfGenerating(true);
     
     try {
-      // Need to save the quotation first
       const tempQuotation = isEditMode 
         ? await updateQuotation(id!, quoteItems, customerInfo, subtotal, gst, total) 
         : await createQuotation(quoteItems, customerInfo, subtotal, gst, total);
         
-      // Then navigate to view it and trigger PDF download
       navigate(`/quotations/${tempQuotation.id}`);
       
       setTimeout(async () => {
@@ -223,7 +213,6 @@ const CreateQuotationForm = () => {
     }
   };
 
-  // Loading state
   if (isEditMode && isLoadingQuotation) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -233,7 +222,6 @@ const CreateQuotationForm = () => {
     );
   }
 
-  // Render content based on current step
   const renderStepContent = () => {
     switch (currentStep) {
       case 1: // Select Products
@@ -250,7 +238,6 @@ const CreateQuotationForm = () => {
               </Button>
             </div>
             
-            {/* Products List */}
             {quoteItems.length > 0 ? (
               <div className="space-y-3">
                 {quoteItems.map((item, index) => (
@@ -265,7 +252,6 @@ const CreateQuotationForm = () => {
                   />
                 ))}
                 
-                {/* Totals */}
                 <Card className="mt-6">
                   <CardContent className="p-4">
                     <div className="space-y-2">
@@ -307,7 +293,6 @@ const CreateQuotationForm = () => {
               </Card>
             )}
             
-            {/* Product Selector Dialog */}
             <ProductSelector
               open={isAddItemDialogOpen}
               onClose={() => setIsAddItemDialogOpen(false)}
@@ -386,7 +371,6 @@ const CreateQuotationForm = () => {
                 <CardTitle>Quotation Summary</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Customer Info */}
                 <div>
                   <h3 className="font-medium text-muted-foreground mb-2">Customer Information</h3>
                   <div className="grid md:grid-cols-2 gap-4">
@@ -410,7 +394,6 @@ const CreateQuotationForm = () => {
                 
                 <Separator />
                 
-                {/* Items Summary */}
                 <div>
                   <h3 className="font-medium text-muted-foreground mb-2">Items ({quoteItems.length})</h3>
                   <div className="space-y-2">
@@ -438,7 +421,6 @@ const CreateQuotationForm = () => {
                 
                 <Separator />
                 
-                {/* Payment Summary */}
                 <div>
                   <h3 className="font-medium text-muted-foreground mb-2">Payment Summary</h3>
                   <div className="space-y-2">
@@ -504,7 +486,6 @@ const CreateQuotationForm = () => {
         </h1>
       </div>
       
-      {/* Step Indicator */}
       <div className="flex justify-between">
         <Card className="w-full overflow-hidden">
           <CardContent className="p-0">
@@ -540,10 +521,8 @@ const CreateQuotationForm = () => {
         </Card>
       </div>
       
-      {/* Step Content */}
       {renderStepContent()}
       
-      {/* Navigation Buttons */}
       <div className="flex justify-between mt-8">
         {currentStep > 1 ? (
           <Button 
