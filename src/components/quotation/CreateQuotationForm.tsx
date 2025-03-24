@@ -1,6 +1,7 @@
 
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { 
   Card, 
   CardContent, 
@@ -24,11 +25,19 @@ import {
   Plus,
   ArrowLeft,
   ArrowRight,
-  ChevronRight
+  ChevronRight,
+  Download
 } from "lucide-react";
-import { createQuotation, CustomerInfo, QuoteItem } from "@/services/quotationService";
+import { 
+  createQuotation, 
+  updateQuotation, 
+  getQuotationById, 
+  CustomerInfo, 
+  QuoteItem 
+} from "@/services/quotationService";
 import ProductSelector from "./ProductSelector";
 import QuotationItemCard from "./QuotationItemCard";
+import { generatePDF } from "@/utils/quotationUtils";
 
 const calculateTotals = (items: QuoteItem[]) => {
   const subtotal = items.reduce((acc, item) => acc + item.total, 0);
@@ -40,17 +49,41 @@ const calculateTotals = (items: QuoteItem[]) => {
 
 const CreateQuotationForm = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEditMode = !!id;
   
   const [currentStep, setCurrentStep] = useState(1);
   const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([]);
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPdfGenerating, setIsPdfGenerating] = useState(false);
   
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
     name: "",
     email: "",
     phone: "",
     address: ""
+  });
+  
+  // Fetch quotation data if in edit mode
+  const { data: quotationData, isLoading: isLoadingQuotation } = useQuery({
+    queryKey: ['quotation', id],
+    queryFn: () => getQuotationById(id || ''),
+    enabled: isEditMode,
+    onSuccess: (data) => {
+      setQuoteItems(data.items);
+      setCustomerInfo({
+        name: data.customer_name,
+        email: data.customer_email || "",
+        phone: data.customer_phone || "",
+        address: data.customer_address || ""
+      });
+    },
+    onError: (error) => {
+      console.error("Error fetching quotation:", error);
+      toast.error("Failed to load quotation data");
+      navigate("/quotations");
+    }
   });
   
   const { subtotal, gst, total } = calculateTotals(quoteItems);
@@ -89,6 +122,15 @@ const CreateQuotationForm = () => {
     toast.success(`Discount applied to ${updatedItems[index].name}`);
   };
 
+  // Handle updating an item's area
+  const handleUpdateItemArea = (index: number, area: string) => {
+    const updatedItems = [...quoteItems];
+    updatedItems[index].area = area;
+    
+    setQuoteItems(updatedItems);
+    toast.success(`Area updated for ${updatedItems[index].name}`);
+  };
+
   // Handle navigation between steps
   const handleNextStep = () => {
     if (currentStep === 1 && quoteItems.length === 0) {
@@ -111,37 +153,85 @@ const CreateQuotationForm = () => {
     setCurrentStep(currentStep - 1);
   };
   
-  // Handle creating the quote
-  const handleCreateQuote = async () => {
+  // Handle creating or updating the quote
+  const handleSaveQuote = async () => {
     try {
       setIsSubmitting(true);
       
-      console.log("Creating quotation with items:", quoteItems);
+      console.log("Saving quotation with items:", quoteItems);
       console.log("Customer info:", customerInfo);
       console.log("Financial details:", { subtotal, gst, total });
       
-      // Create the quotation in the database
-      const quotation = await createQuotation(
-        quoteItems,
-        customerInfo,
-        subtotal,
-        gst,
-        total
-      );
+      let quotation;
       
-      toast.success("Quotation created successfully!");
+      if (isEditMode) {
+        // Update existing quotation
+        quotation = await updateQuotation(
+          id!,
+          quoteItems,
+          customerInfo,
+          subtotal,
+          gst,
+          total
+        );
+        toast.success("Quotation updated successfully!");
+      } else {
+        // Create new quotation
+        quotation = await createQuotation(
+          quoteItems,
+          customerInfo,
+          subtotal,
+          gst,
+          total
+        );
+        toast.success("Quotation created successfully!");
+      }
       
-      // Navigate to the new quotation
+      // Navigate to the quotation
       setTimeout(() => {
         navigate(`/quotations/${quotation.id}`);
       }, 1000);
     } catch (error) {
-      console.error("Error creating quotation:", error);
-      toast.error(`Failed to create quotation: ${(error as Error).message}`);
+      console.error("Error saving quotation:", error);
+      toast.error(`Failed to ${isEditMode ? 'update' : 'create'} quotation: ${(error as Error).message}`);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // Handle PDF generation
+  const handleGeneratePDF = async () => {
+    setIsPdfGenerating(true);
+    
+    try {
+      // Need to save the quotation first
+      const tempQuotation = isEditMode 
+        ? await updateQuotation(id!, quoteItems, customerInfo, subtotal, gst, total) 
+        : await createQuotation(quoteItems, customerInfo, subtotal, gst, total);
+        
+      // Then navigate to view it and trigger PDF download
+      navigate(`/quotations/${tempQuotation.id}`);
+      
+      setTimeout(async () => {
+        await generatePDF();
+        setIsPdfGenerating(false);
+      }, 1000);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF");
+      setIsPdfGenerating(false);
+    }
+  };
+
+  // Loading state
+  if (isEditMode && isLoadingQuotation) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Loading quotation data...</span>
+      </div>
+    );
+  }
 
   // Render content based on current step
   const renderStepContent = () => {
@@ -170,6 +260,7 @@ const CreateQuotationForm = () => {
                     index={index}
                     onUpdateQuantity={handleUpdateItemQuantity}
                     onUpdateDiscount={handleUpdateItemDiscount}
+                    onUpdateArea={handleUpdateItemArea}
                     onRemove={handleRemoveItem}
                   />
                 ))}
@@ -288,7 +379,7 @@ const CreateQuotationForm = () => {
       case 3: // Review
         return (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold">Review Quotation</h2>
+            <h2 className="text-xl font-semibold">Review & Finalize Quotation</h2>
             
             <Card>
               <CardHeader>
@@ -334,6 +425,9 @@ const CreateQuotationForm = () => {
                                 ({((1 - item.discountedPrice / item.price) * 100).toFixed(0)}% off)
                               </span>
                             )}
+                            {item.area && (
+                              <span className="ml-2">• {item.area}</span>
+                            )}
                           </div>
                         </div>
                         <div className="font-medium">₹{item.total.toLocaleString()}</div>
@@ -373,6 +467,27 @@ const CreateQuotationForm = () => {
                 </div>
               </CardFooter>
             </Card>
+            
+            <div className="flex justify-end">
+              <Button 
+                variant="outline"
+                className="gap-2 mr-2"
+                onClick={handleGeneratePDF}
+                disabled={isPdfGenerating || isSubmitting}
+              >
+                {isPdfGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Generating PDF...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    <span>Download PDF</span>
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         );
       
@@ -384,7 +499,9 @@ const CreateQuotationForm = () => {
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <h1 className="text-3xl font-bold tracking-tight">Create Quotation</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {isEditMode ? 'Edit Quotation' : 'Create Quotation'}
+        </h1>
       </div>
       
       {/* Step Indicator */}
@@ -416,7 +533,7 @@ const CreateQuotationForm = () => {
                 }`}
               >
                 <FileText className="h-5 w-5 mb-1 sm:mb-0 sm:mr-2" />
-                <span className="text-sm font-medium">Review & Create</span>
+                <span className="text-sm font-medium">Review & Finalize</span>
               </div>
             </div>
           </CardContent>
@@ -452,18 +569,18 @@ const CreateQuotationForm = () => {
         ) : (
           <Button 
             className="gap-2"
-            onClick={handleCreateQuote}
+            onClick={handleSaveQuote}
             disabled={isSubmitting}
           >
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Creating...</span>
+                <span>{isEditMode ? 'Updating...' : 'Creating...'}</span>
               </>
             ) : (
               <>
                 <CheckCircle className="h-4 w-4" />
-                <span>Create Quotation</span>
+                <span>{isEditMode ? 'Update Quotation' : 'Create Quotation'}</span>
               </>
             )}
           </Button>

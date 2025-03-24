@@ -1,4 +1,3 @@
-
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { CompanyDetails } from '@/services/quotationService';
@@ -6,7 +5,11 @@ import { CompanyDetails } from '@/services/quotationService';
 // Company details for all quotations
 export const companyDetails: CompanyDetails = {
   name: "Magnific Home Appliances",
-  logo: "/lovable-uploads/45e5c024-3f6f-4c46-ac06-af2cb2e67a85.png", // Using the uploaded logo
+  logo: "/lovable-uploads/41a736d8-ee0f-402a-9d94-ff46525d89bd.png", // Updated logo
+  address: "No. 42/1, 1st Floor, J-Towers, 1000 Intermediate Ring Road (Near Royal Oak), Koramangala, Bengaluru - 560047",
+  phone: "+91 9943 27081, +91 78925 27670",
+  email: "info@magnific.in",
+  website: "www.magnific.in",
   bank_name: "Axis Bank Koramangala",
   account_no: "924030028295392",
   ifsc_code: "UTIB0000194"
@@ -89,7 +92,7 @@ export const printQuotation = () => {
   }, 250);
 };
 
-// Generate PDF from the quotation
+// Generate PDF from the quotation with optimized image handling
 export const generatePDF = async () => {
   const printContent = document.getElementById('quotation-print-container');
   
@@ -99,24 +102,40 @@ export const generatePDF = async () => {
   }
   
   try {
+    // Use a better quality/size ratio for the canvas
     const canvas = await html2canvas(printContent, {
-      scale: 2, // Higher scale for better quality
-      useCORS: true, // Enable CORS for images
+      scale: 1.5, // Lower scale for smaller file size
+      useCORS: true,
       logging: false,
-      backgroundColor: '#ffffff'
+      backgroundColor: '#ffffff',
+      imageTimeout: 15000,
+      // Optimize for rendering performance
+      onclone: (document) => {
+        // Process images to optimize them before PDF generation
+        const images = document.querySelectorAll('img');
+        images.forEach(img => {
+          // Add a quality attribute that html2canvas will use
+          if (!img.hasAttribute('data-html2canvas-ignore')) {
+            img.setAttribute('crossorigin', 'anonymous');
+          }
+        });
+      }
     });
     
-    const imgData = canvas.toDataURL('image/png');
+    const imgData = canvas.toDataURL('image/jpeg', 0.7); // Use JPEG with 70% quality instead of PNG
+    
+    // Create PDF with compression options
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
-      format: 'a4'
+      format: 'a4',
+      compress: true
     });
     
     const imgWidth = 210; // A4 width in mm
     const imgHeight = canvas.height * imgWidth / canvas.width;
     
-    pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+    pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
     
     // Add some metadata
     pdf.setProperties({

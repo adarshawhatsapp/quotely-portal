@@ -1,10 +1,13 @@
 
 import { useQueryClient } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import CreateQuotationForm from "@/components/quotation/CreateQuotationForm";
 
 const CreateQuotationPage = () => {
   const queryClient = useQueryClient();
+  const { id } = useParams<{ id: string }>();
+  const isEditMode = !!id;
 
   // We're going to prefetch products and spares data
   const productsLoading = queryClient.isFetching({queryKey: ['products']});

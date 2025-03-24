@@ -14,13 +14,13 @@ import { Badge } from "@/components/ui/badge";
 import {
   Download,
   Mail,
-  Printer,
   Edit,
   Check,
   X,
   ArrowLeft,
   AlertCircle,
-  Loader2
+  Loader2,
+  Pencil
 } from "lucide-react";
 import {
   AlertDialog,
@@ -36,7 +36,7 @@ import { toast } from "sonner";
 import { getQuotationById, updateQuotationStatus } from "@/services/quotationService";
 import { useAuth } from "@/context/AuthContext";
 import PrintableQuotation from "@/components/PrintableQuotation";
-import { printQuotation, generatePDF } from "@/utils/quotationUtils";
+import { generatePDF } from "@/utils/quotationUtils";
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -60,6 +60,7 @@ const QuotationDetailPage = () => {
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [showPrintView, setShowPrintView] = useState(false);
+  const [isPdfGenerating, setIsPdfGenerating] = useState(false);
 
   const { data: quotation, isLoading, error } = useQuery({
     queryKey: ['quotation', id],
@@ -105,6 +106,7 @@ const QuotationDetailPage = () => {
 
   const handleDownload = async () => {
     if (!quotation) return;
+    setIsPdfGenerating(true);
     
     // Show the print view first (which is hidden by default)
     setShowPrintView(true);
@@ -121,26 +123,13 @@ const QuotationDetailPage = () => {
       
       // Hide the print view
       setShowPrintView(false);
+      setIsPdfGenerating(false);
     }, 100);
   };
 
-  const handlePrint = () => {
-    if (!quotation) return;
-    
-    // Show the print view
-    setShowPrintView(true);
-    
-    // Wait for the component to render
-    setTimeout(() => {
-      printQuotation();
-      
-      // Hide the print view after a delay
-      setTimeout(() => {
-        setShowPrintView(false);
-      }, 1000);
-    }, 100);
-    
-    toast.success("Printing quotation...");
+  const handleEdit = () => {
+    if (!id) return;
+    navigate(`/quotations/edit/${id}`);
   };
 
   if (isLoading) {
@@ -175,7 +164,7 @@ const QuotationDetailPage = () => {
     );
   }
   
-  // Hidden print view (only visible when printing or generating PDF)
+  // Hidden print view (only visible when generating PDF)
   if (showPrintView) {
     return <PrintableQuotation quotation={quotation} />;
   }
@@ -217,17 +206,30 @@ const QuotationDetailPage = () => {
               </Button>
             </>
           )}
-          <Button variant="outline" className="gap-1" onClick={handlePrint}>
-            <Printer className="h-4 w-4" />
-            <span className="hidden sm:inline">Print</span>
+          <Button variant="outline" className="gap-1" onClick={handleEdit}>
+            <Pencil className="h-4 w-4" />
+            <span className="hidden sm:inline">Edit</span>
           </Button>
           <Button variant="outline" className="gap-1" onClick={handleEmail}>
             <Mail className="h-4 w-4" />
             <span className="hidden sm:inline">Email</span>
           </Button>
-          <Button className="gap-1" onClick={handleDownload}>
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Download PDF</span>
+          <Button 
+            className="gap-1" 
+            onClick={handleDownload}
+            disabled={isPdfGenerating}
+          >
+            {isPdfGenerating ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="hidden sm:inline">Generating PDF...</span>
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Download PDF</span>
+              </>
+            )}
           </Button>
         </div>
       </div>
@@ -277,7 +279,7 @@ const QuotationDetailPage = () => {
           <CardHeader>
             <div className="flex justify-between items-start">
               <CardTitle className="text-lg">Customer Information</CardTitle>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleEdit}>
                 <Edit className="h-4 w-4" />
               </Button>
             </div>
@@ -348,12 +350,13 @@ const QuotationDetailPage = () => {
               <thead>
                 <tr className="border-b text-left">
                   <th className="pb-2 font-medium text-sm text-muted-foreground w-12">No.</th>
-                  <th className="pb-2 font-medium text-sm text-muted-foreground">Product</th>
-                  <th className="pb-2 font-medium text-sm text-muted-foreground">Photo</th>
-                  <th className="pb-2 font-medium text-sm text-muted-foreground">Description</th>
+                  <th className="pb-2 font-medium text-sm text-muted-foreground">Model</th>
+                  <th className="pb-2 font-medium text-sm text-muted-foreground">Image</th>
+                  <th className="pb-2 font-medium text-sm text-muted-foreground">Technical Details</th>
+                  <th className="pb-2 font-medium text-sm text-muted-foreground">Area</th>
                   <th className="pb-2 font-medium text-sm text-muted-foreground text-center">Qty</th>
-                  <th className="pb-2 font-medium text-sm text-muted-foreground text-right">Price</th>
-                  <th className="pb-2 font-medium text-sm text-muted-foreground text-right">Discounted</th>
+                  <th className="pb-2 font-medium text-sm text-muted-foreground text-right">List Price</th>
+                  <th className="pb-2 font-medium text-sm text-muted-foreground text-right">After Discount</th>
                   <th className="pb-2 font-medium text-sm text-muted-foreground text-right">Total</th>
                 </tr>
               </thead>
@@ -361,25 +364,29 @@ const QuotationDetailPage = () => {
                 {quotation.items.map((product, index) => (
                   <tr key={`${product.id}-${index}`} className="border-b last:border-0">
                     <td className="py-3 align-top text-sm">{index + 1}</td>
-                    <td className="py-3 align-top font-medium">{product.name}</td>
+                    <td className="py-3 align-top font-medium">
+                      {product.name}
+                      {product.modelNumber && <div className="text-xs text-muted-foreground">Model: {product.modelNumber}</div>}
+                    </td>
                     <td className="py-3 align-top">
                       {product.image ? (
-                        <div className="w-12 h-12 overflow-hidden rounded">
+                        <div className="w-20 h-20 overflow-hidden rounded">
                           <img 
                             src={product.image} 
                             alt={product.name}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-contain"
                           />
                         </div>
                       ) : (
-                        <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                        <div className="w-20 h-20 bg-muted rounded flex items-center justify-center">
                           <AlertCircle className="h-4 w-4 text-muted-foreground" />
                         </div>
                       )}
                     </td>
-                    <td className="py-3 align-top text-sm">
-                      {product.description || product.customization || "—"}
+                    <td className="py-3 align-top text-sm max-w-[250px]">
+                      <div className="whitespace-pre-line">{product.description || product.customization || "—"}</div>
                     </td>
+                    <td className="py-3 align-top text-sm">{product.area || "—"}</td>
                     <td className="py-3 align-top text-sm text-center">{product.quantity}</td>
                     <td className="py-3 align-top text-sm text-right">
                       ₹{product.price.toLocaleString()}
@@ -400,17 +407,17 @@ const QuotationDetailPage = () => {
               </tbody>
               <tfoot>
                 <tr className="border-t">
-                  <td colSpan={6} className="pt-3"></td>
+                  <td colSpan={7} className="pt-3"></td>
                   <td className="pt-3 text-right text-sm font-medium">Subtotal:</td>
                   <td className="pt-3 text-right font-medium">₹{quotation.subtotal.toLocaleString()}</td>
                 </tr>
                 <tr>
-                  <td colSpan={6}></td>
+                  <td colSpan={7}></td>
                   <td className="py-1 text-right text-sm font-medium">GST (18%):</td>
                   <td className="py-1 text-right font-medium">₹{quotation.gst.toLocaleString()}</td>
                 </tr>
                 <tr className="border-t">
-                  <td colSpan={6}></td>
+                  <td colSpan={7}></td>
                   <td className="pt-2 text-right text-sm font-bold">Total:</td>
                   <td className="pt-2 text-right font-bold text-lg">₹{quotation.total.toLocaleString()}</td>
                 </tr>

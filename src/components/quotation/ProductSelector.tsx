@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
 import { Search, AlertCircle, ShoppingCart, Plus, Minus, Check } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getProducts } from "@/services/productService";
@@ -36,6 +37,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
   const [quantity, setQuantity] = useState(1);
   const [discountedPrice, setDiscountedPrice] = useState(0);
   const [description, setDescription] = useState("");
+  const [area, setArea] = useState("");
 
   // Fetch products and spares
   const { data: products = [] } = useQuery({
@@ -81,7 +83,8 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
       image: selectedItem.image || null,
       type: activeTab === "products" ? "product" : "spare",
       description: description || null,
-      customization: null
+      customization: null,
+      area: area || undefined
     };
 
     onAddItem(newItem);
@@ -92,13 +95,7 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
     setQuantity(1);
     setDiscountedPrice(0);
     setDescription("");
-  };
-
-  // Handle discount percentage change
-  const handleDiscountPercentageChange = (percentage: number) => {
-    if (!selectedItem) return;
-    const newPrice = selectedItem.price * (1 - percentage / 100);
-    setDiscountedPrice(Math.round(newPrice * 100) / 100);
+    setArea("");
   };
 
   return (
@@ -228,24 +225,6 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                   <span className="font-medium">₹{selectedItem.price.toLocaleString()}</span>
                 </div>
                 
-                {/* Discount Controls */}
-                <div>
-                  <div className="text-sm mb-1">Apply Discount:</div>
-                  <div className="flex gap-1 flex-wrap">
-                    {[0, 5, 10, 15, 20, 25, 30].map((percent) => (
-                      <Button
-                        key={percent}
-                        type="button"
-                        variant={discountedPrice === selectedItem.price * (1 - percent / 100) ? "default" : "outline"}
-                        className="h-7 text-xs px-2"
-                        onClick={() => handleDiscountPercentageChange(percent)}
-                      >
-                        {percent}%
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                
                 {/* Discounted Price Input */}
                 <div>
                   <div className="text-sm mb-1">Discounted Price:</div>
@@ -268,6 +247,17 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                       (₹{(selectedItem.price - discountedPrice).toLocaleString()})
                     </div>
                   )}
+                </div>
+
+                {/* Area Input */}
+                <div>
+                  <div className="text-sm mb-1">Area:</div>
+                  <Input
+                    type="text"
+                    value={area}
+                    onChange={(e) => setArea(e.target.value)}
+                    placeholder="e.g. Living Room, Bedroom, Kitchen"
+                  />
                 </div>
                 
                 {/* Quantity Controls */}
@@ -308,12 +298,12 @@ const ProductSelector: React.FC<ProductSelectorProps> = ({
                 
                 {/* Description */}
                 <div>
-                  <div className="text-sm mb-1">Description (optional):</div>
+                  <div className="text-sm mb-1">Technical Details:</div>
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     className="w-full min-h-[80px] p-2 text-sm border rounded-md"
-                    placeholder="Enter any additional details about this item..."
+                    placeholder="Enter technical specifications, size, etc."
                   />
                 </div>
                 

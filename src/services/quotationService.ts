@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { companyDetails as defaultCompanyDetails } from "@/utils/quotationUtils";
 
@@ -51,6 +50,10 @@ export interface CustomerInfo {
 export interface CompanyDetails {
   name: string;
   logo?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
   bank_name: string;
   account_no: string;
   ifsc_code: string;
@@ -120,6 +123,7 @@ export const createQuotation = async (
     id: item.id,
     name: item.name,
     modelNumber: item.modelNumber || null,
+    area: item.area || null,
     quantity: item.quantity,
     price: item.price,
     discountedPrice: item.discountedPrice,
@@ -151,6 +155,59 @@ export const createQuotation = async (
     
   if (error) {
     console.error("Error creating quotation:", error);
+    throw error;
+  }
+  
+  return data;
+};
+
+// Update quotation
+export const updateQuotation = async (
+  id: string,
+  items: QuoteItem[],
+  customerInfo: CustomerInfo,
+  subtotal: number,
+  gst: number,
+  total: number
+): Promise<Quotation> => {
+  console.log("Updating quotation:", { id, items, customerInfo, subtotal, gst, total });
+  
+  // Clean the items to ensure they match our database schema
+  const cleanItems = items.map(item => ({
+    id: item.id,
+    name: item.name,
+    modelNumber: item.modelNumber || null,
+    area: item.area || null,
+    quantity: item.quantity,
+    price: item.price,
+    discountedPrice: item.discountedPrice,
+    customization: item.customization || null,
+    description: item.description || null,
+    total: item.total,
+    image: item.image || null,
+    type: item.type,
+    parentProductId: item.parentProductId || null
+  }));
+  
+  const { data, error } = await supabase
+    .from('quotations')
+    .update({
+      customer_name: customerInfo.name,
+      customer_email: customerInfo.email || null,
+      customer_phone: customerInfo.phone || null,
+      customer_address: customerInfo.address || null,
+      customer_id: customerInfo.id || null,
+      items: cleanItems,
+      subtotal: subtotal,
+      gst: gst,
+      total: total
+    })
+    .eq('id', id)
+    .select()
+    .single();
+    
+  if (error) {
+    console.error("Error updating quotation:", error);
     throw error;
   }
   

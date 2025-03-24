@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Trash, Minus, Plus, Edit, Check } from "lucide-react";
 import { QuoteItem } from "@/services/quotationService";
 
@@ -12,6 +13,7 @@ interface QuotationItemCardProps {
   index: number;
   onUpdateQuantity: (index: number, quantity: number) => void;
   onUpdateDiscount: (index: number, discountedPrice: number) => void;
+  onUpdateArea: (index: number, area: string) => void;
   onRemove: (index: number) => void;
 }
 
@@ -20,16 +22,24 @@ const QuotationItemCard: React.FC<QuotationItemCardProps> = ({
   index,
   onUpdateQuantity,
   onUpdateDiscount,
+  onUpdateArea,
   onRemove
 }) => {
   const [isEditingDiscount, setIsEditingDiscount] = useState(false);
   const [discountedPrice, setDiscountedPrice] = useState(item.discountedPrice);
+  const [isEditingArea, setIsEditingArea] = useState(false);
+  const [area, setArea] = useState(item.area || "");
   
   const handleUpdateDiscount = () => {
     // Ensure discounted price is not lower than 0 or higher than original price
     const newPrice = Math.min(item.price, Math.max(0, discountedPrice));
     onUpdateDiscount(index, newPrice);
     setIsEditingDiscount(false);
+  };
+
+  const handleUpdateArea = () => {
+    onUpdateArea(index, area);
+    setIsEditingArea(false);
   };
   
   const discount = item.price - item.discountedPrice;
@@ -40,7 +50,7 @@ const QuotationItemCard: React.FC<QuotationItemCardProps> = ({
       <CardContent className="p-4">
         <div className="flex flex-col md:flex-row gap-4">
           {/* Product Image */}
-          <div className="w-16 h-16 rounded bg-muted/50 overflow-hidden flex-shrink-0">
+          <div className="w-20 h-20 rounded bg-muted/50 overflow-hidden flex-shrink-0">
             {item.image ? (
               <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
             ) : (
@@ -76,7 +86,45 @@ const QuotationItemCard: React.FC<QuotationItemCardProps> = ({
               </Button>
             </div>
             
-            <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+              {/* Area Input */}
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">Area</div>
+                {isEditingArea ? (
+                  <div className="flex items-center">
+                    <Input
+                      type="text"
+                      value={area}
+                      onChange={(e) => setArea(e.target.value)}
+                      className="h-8 text-sm"
+                      placeholder="e.g. Living Room"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 flex-shrink-0"
+                      onClick={handleUpdateArea}
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center">
+                    <div className="text-sm">
+                      {area ? area : <span className="text-muted-foreground text-xs">Not specified</span>}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => setIsEditingArea(true)}
+                    >
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              
               {/* Quantity Controls */}
               <div>
                 <div className="text-xs text-muted-foreground mb-1">Quantity</div>
@@ -118,23 +166,27 @@ const QuotationItemCard: React.FC<QuotationItemCardProps> = ({
                 <div className="text-xs text-muted-foreground mb-1">Price</div>
                 {isEditingDiscount ? (
                   <div className="flex items-center">
-                    <Input
-                      type="number"
-                      value={discountedPrice}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        if (!isNaN(val)) {
-                          setDiscountedPrice(val);
-                        }
-                      }}
-                      className="h-8 w-full text-right pr-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      min="0"
-                      max={item.price}
-                    />
+                    <div className="flex-1">
+                      <Label htmlFor="discounted-price" className="text-xs">Discounted Price</Label>
+                      <Input
+                        id="discounted-price"
+                        type="number"
+                        value={discountedPrice}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!isNaN(val)) {
+                            setDiscountedPrice(val);
+                          }
+                        }}
+                        className="h-8 w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        min="0"
+                        max={item.price}
+                      />
+                    </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 flex-shrink-0"
+                      className="h-8 w-8 flex-shrink-0 mt-4"
                       onClick={handleUpdateDiscount}
                     >
                       <Check className="h-4 w-4" />
