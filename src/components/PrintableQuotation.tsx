@@ -18,36 +18,37 @@ const PrintableQuotation: React.FC<PrintableQuotationProps> = ({ quotation }) =>
   };
 
   return (
-    <div id="quotation-print-container" className="bg-white p-4 max-w-[210mm] mx-auto">
+    <div id="quotation-print-container" className="bg-white p-8 max-w-[210mm] mx-auto text-black">
       {/* Header with logo and title */}
-      <div className="text-center border-b border-blue-600">
-        <h1 className="text-xl font-bold text-blue-600">Quotation</h1>
-      </div>
-
-      {/* Company Header with logo */}
-      <div className="flex justify-between items-start mt-4 mb-6">
-        <div className="flex items-start">
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center">
           {quotation.company_details.logo && (
             <img 
               src={quotation.company_details.logo}
               alt="Magnific Logo" 
-              className="h-14 object-contain"
+              className="h-16 object-contain"
               style={{ filter: "brightness(0) saturate(100%) invert(29%) sepia(98%) saturate(1954%) hue-rotate(191deg) brightness(94%) contrast(98%)" }}
             />
           )}
-          <div className="ml-2 text-sm">
-            <p className="text-gray-700">{quotation.company_details.address}</p>
-            <p className="text-gray-700">Tel: {quotation.company_details.phone} E: {quotation.company_details.email}</p>
-          </div>
         </div>
-        <div className="text-right text-sm">
+        <div className="text-center flex-1">
+          <h1 className="text-2xl font-bold text-blue-600">Quotation</h1>
+        </div>
+        <div className="text-right">
           <p className="font-medium">Estimate No: {quotation.quote_number}</p>
           <p className="font-medium">Date: {formatDate(quotation.created_at)}</p>
         </div>
       </div>
 
+      {/* Company Details */}
+      <div className="mb-4 text-sm">
+        <p className="text-gray-700">Tel: {quotation.company_details.phone}</p>
+        <p className="text-gray-700">E: {quotation.company_details.email}</p>
+        <p className="text-gray-700">{quotation.company_details.address}</p>
+      </div>
+
       {/* Customer Information */}
-      <div className="mb-6 text-sm">
+      <div className="mb-6 text-sm border-t border-b py-3">
         <p className="font-bold">TO: {quotation.customer_name}</p>
         {quotation.customer_phone && <p className="text-gray-700">Contact: {quotation.customer_phone}</p>}
         {quotation.customer_email && <p className="text-gray-700">Email: {quotation.customer_email}</p>}
@@ -75,15 +76,16 @@ const PrintableQuotation: React.FC<PrintableQuotationProps> = ({ quotation }) =>
               <td className="border border-gray-300 p-2 text-center">{index + 1}</td>
               <td className="border border-gray-300 p-2 text-center">
                 {item.image ? (
-                  <div className="w-20 h-20 overflow-hidden mx-auto">
+                  <div className="w-24 h-24 overflow-hidden mx-auto">
                     <img 
                       src={item.image} 
                       alt={item.name} 
                       className="w-full h-full object-contain"
+                      crossOrigin="anonymous"
                     />
                   </div>
                 ) : (
-                  <div className="w-20 h-20 bg-gray-100 flex items-center justify-center text-xs text-gray-500 mx-auto">
+                  <div className="w-24 h-24 bg-gray-100 flex items-center justify-center text-xs text-gray-500 mx-auto">
                     No image
                   </div>
                 )}
@@ -92,7 +94,7 @@ const PrintableQuotation: React.FC<PrintableQuotationProps> = ({ quotation }) =>
                 {item.name}
                 {item.modelNumber && <div className="text-xs text-gray-600">Model: {item.modelNumber}</div>}
               </td>
-              <td className="border border-gray-300 p-2 text-xs">
+              <td className="border border-gray-300 p-2 text-xs" style={{ maxWidth: "200px", wordWrap: "break-word" }}>
                 <div className="whitespace-pre-line">{item.description || item.customization || "—"}</div>
               </td>
               <td className="border border-gray-300 p-2 text-center">{item.area || "—"}</td>
@@ -138,17 +140,17 @@ const PrintableQuotation: React.FC<PrintableQuotationProps> = ({ quotation }) =>
         <h3 className="font-medium mb-1">Payment Details</h3>
         <p>
           <span className="font-semibold">RTGS Details:</span><br />
-          Company name: Magnific Home Appliances<br />
-          Bank Name: Axis Bank Koramangala<br />
-          Account No: 924030028295392<br />
-          IFSC Code: UTIB0000194
+          Company name: {quotation.company_details.name}<br />
+          Bank Name: {quotation.company_details.bank_name}<br />
+          Account No: {quotation.company_details.account_no}<br />
+          IFSC Code: {quotation.company_details.ifsc_code}
         </p>
       </div>
 
       {/* Terms and conditions */}
-      <div className="mb-6">
+      <div className="mb-4 text-xs">
         <h3 className="font-medium mb-1 text-sm">Terms & Conditions</h3>
-        <ol className="text-xs list-decimal pl-5 space-y-0.5">
+        <ol className="list-decimal pl-5 space-y-0.5">
           {termsAndConditions.map((term, index) => (
             <li key={index}>{term}</li>
           ))}

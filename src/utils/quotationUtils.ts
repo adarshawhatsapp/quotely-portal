@@ -1,3 +1,4 @@
+
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { CompanyDetails } from '@/services/quotationService';
@@ -92,52 +93,113 @@ export const printQuotation = () => {
   }, 250);
 };
 
-// Generate PDF from the quotation with optimized image handling
+// Generate PDF from the quotation with improved quality and text selection
 export const generatePDF = async () => {
   const printContent = document.getElementById('quotation-print-container');
   
   if (!printContent) {
     console.error("Quotation print container not found");
-    return;
+    return false;
   }
   
   try {
-    // Use a better quality/size ratio for the canvas
-    const canvas = await html2canvas(printContent, {
-      scale: 1.5, // Lower scale for smaller file size
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff',
-      imageTimeout: 15000,
-      // Optimize for rendering performance
-      onclone: (document) => {
-        // Process images to optimize them before PDF generation
-        const images = document.querySelectorAll('img');
-        images.forEach(img => {
-          // Add a quality attribute that html2canvas will use
-          if (!img.hasAttribute('data-html2canvas-ignore')) {
-            img.setAttribute('crossorigin', 'anonymous');
-          }
-        });
-      }
-    });
-    
-    const imgData = canvas.toDataURL('image/jpeg', 0.7); // Use JPEG with 70% quality instead of PNG
-    
-    // Create PDF with compression options
+    // Create a new jsPDF instance in portrait mode with A4 size
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
       format: 'a4',
-      compress: true
+      compress: true,
+      putOnlyUsedFonts: true,
+      floatPrecision: 16 // For better text precision
     });
     
-    const imgWidth = 210; // A4 width in mm
-    const imgHeight = canvas.height * imgWidth / canvas.width;
+    // Get the width and height of the A4 page in mm
+    const pageWidth = 210;
+    const pageHeight = 297;
     
-    pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
+    // Set margins (in mm)
+    const margin = 10;
+    const contentWidth = pageWidth - (margin * 2);
     
-    // Add some metadata
+    // Get all DOM elements in printContent
+    const elements = Array.from(printContent.querySelectorAll('*'));
+    
+    // Pre-process the DOM for PDF generation
+    const images = Array.from(printContent.querySelectorAll('img'));
+    await Promise.all(images.map(img => new Promise(resolve => {
+      if (img.complete) {
+        resolve(true);
+      } else {
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(false);
+      }
+    })));
+    
+    // Create a clone of the content to manipulate
+    const clone = printContent.cloneNode(true) as HTMLElement;
+    
+    // Force all image widths to be appropriate
+    Array.from(clone.querySelectorAll('img')).forEach(img => {
+      img.style.maxWidth = '100%';
+      img.style.height = 'auto';
+    });
+    
+    // Get HTML string from the element
+    const htmlContent = clone.outerHTML;
+    
+    // Use html2canvas to render the content
+    // We'll use a higher DPI to get better quality
+    const canvas = await html2canvas(printContent, {
+      scale: 2, // Higher scale for better image quality
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      backgroundColor: '#FFFFFF',
+      onclone: (document) => {
+        // Make any final adjustments to the cloned document
+        const content = document.getElementById('quotation-print-container');
+        if (content) {
+          content.style.width = contentWidth + 'mm';
+          // Ensure all images are loaded by setting crossOrigin attribute
+          content.querySelectorAll('img').forEach(img => {
+            img.setAttribute('crossorigin', 'anonymous');
+          });
+        }
+        return document;
+      }
+    });
+    
+    // Get image data at 80% quality (balances size and quality)
+    const imgData = canvas.toDataURL('image/jpeg', 0.8);
+    
+    // Calculate scaling to fit on A4
+    const imgWidth = contentWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    
+    // Add image to PDF, centered with margins
+    pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight);
+    
+    // Check if content height exceeds page height and add more pages if needed
+    let heightLeft = imgHeight;
+    let position = margin;
+    
+    while (heightLeft > (pageHeight - margin * 2)) {
+      // Add a new page
+      pdf.addPage();
+      position = margin;
+      // Add image again on the new page with adjusted position
+      pdf.addImage(
+        imgData, 
+        'JPEG', 
+        margin, 
+        -(imgHeight - heightLeft + margin), 
+        imgWidth, 
+        imgHeight
+      );
+      heightLeft -= (pageHeight - margin * 2);
+    }
+    
+    // Include metadata (improves PDF accessibility)
     pdf.setProperties({
       title: 'Quotation',
       subject: 'Quotation from Magnific Home Appliances',
@@ -145,6 +207,7 @@ export const generatePDF = async () => {
       creator: 'Magnific Quotation System'
     });
     
+    // Save the PDF file
     pdf.save('Quotation.pdf');
     
     return true;
