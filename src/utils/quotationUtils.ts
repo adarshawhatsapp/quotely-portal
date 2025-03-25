@@ -7,11 +7,11 @@ import { CompanyDetails } from '@/services/quotationService';
 export const companyDetails: CompanyDetails = {
   name: "Magnific Home Appliances",
   logo: "/lovable-uploads/41a736d8-ee0f-402a-9d94-ff46525d89bd.png", // Updated logo
-  address: "No. 42/1, 1st Floor, J-Towers, 1000 Intermediate Ring Road (Near Royal Oak), Koramangala, Bengaluru - 560047",
-  phone: "+91 9943 27081, +91 78925 27670",
+  address: "No. 42/1, 2nd Floor, I-Towers, 100ft Intermediate Ring Road, Near Royal Oak, Koramangala, Bengaluru - 560047",
+  phone: "+91 80413 27081, +91 78928 27670",
   email: "info@magnific.in",
   website: "www.magnific.in",
-  bank_name: "Axis Bank Koramangala",
+  bank_name: "Axis Bank",
   account_no: "924030028295392",
   ifsc_code: "UTIB0000194"
 };
@@ -19,26 +19,25 @@ export const companyDetails: CompanyDetails = {
 // Terms and conditions
 export const termsAndConditions = [
   "Validity: 15 Days from the date of quotation.",
-  "Payment: 30% of advance to be paid while booking, 100% payment before delivery.",
+  "Payment: 50% of advance to be paid while booking, 100% payment before delivery.",
+  "No refunds unless there is an error from the company's side.",
+  "Delivery will only be processed once the payment has cleared.",
   "Company is not responsible for any breakage.",
   "Goods once sold cannot be taken back or exchanged.",
   "Request you to co-operate until delivery is done.",
   "Product should be checked at the time of delivery itself.",
-  "Bulbs,battery cells for remotes are not included with the purchase of any light & fan fittings.",
+  "Bulbs, battery cells for remotes are not included with the purchase of any light & fan fittings.",
   "Bulbs are charged additionally.",
   "Freight charges exclusive. Installation is chargeable.",
   "Rods customisation and clamp customisation charges extra.",
   "Installation charges 600 Rs per fans installation if required.",
   "One time site visit is free, rest is chargeable at 300 Rs per visit.",
-  "No drilling, no rod installation. It has to be done by site electrician.",
-  "We recommend that installation be carried out by a Magnific-trained technician, which would incur a small extra charge.",
-  "Anchor bolt / Fan Hooks/ Fan Box installations need to be done by customer as per fan points."
+  "Order value must exceed ₹50,000 for free delivery."
 ];
 
 // Print function that only prints the quotation container
 export const printQuotation = () => {
   const printContent = document.getElementById('quotation-print-container');
-  const originalContents = document.body.innerHTML;
   
   if (!printContent) {
     console.error("Quotation print container not found");
@@ -64,15 +63,20 @@ export const printQuotation = () => {
   printWindow.document.write(`
     <html>
       <head>
-        <title>Quotation</title>
+        <title>Magnific - Quotation</title>
         ${stylesHtml}
         <style>
           @media print {
-            body { margin: 0; padding: 15mm; }
+            body { margin: 0; padding: 10mm; }
             .no-print { display: none !important; }
+            @page { size: A4; margin: 0; }
           }
-          body { font-family: Arial, sans-serif; }
-          table { width: 100%; border-collapse: collapse; }
+          body { 
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif; 
+            line-height: 1.4;
+          }
+          table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
           th, td { border: 1px solid #ddd; padding: 8px; }
           th { background-color: #f2f2f2; }
         </style>
@@ -90,7 +94,7 @@ export const printQuotation = () => {
   setTimeout(() => {
     printWindow.print();
     printWindow.close();
-  }, 250);
+  }, 500);
 };
 
 // Generate PDF from the quotation with improved quality and text selection
@@ -103,112 +107,147 @@ export const generatePDF = async () => {
   }
   
   try {
-    // Create a new jsPDF instance in portrait mode with A4 size
+    // Create a new jsPDF instance with better font support
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
       format: 'a4',
       compress: true,
       putOnlyUsedFonts: true,
-      floatPrecision: 16 // For better text precision
     });
     
-    // Get the width and height of the A4 page in mm
-    const pageWidth = 210;
-    const pageHeight = 297;
+    // Define A4 dimensions (210mm x 297mm)
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
     
-    // Set margins (in mm)
+    // Set margins
     const margin = 10;
-    const contentWidth = pageWidth - (margin * 2);
     
-    // Get all DOM elements in printContent
-    const elements = Array.from(printContent.querySelectorAll('*'));
-    
-    // Pre-process the DOM for PDF generation
+    // Pre-load images to avoid rendering issues
     const images = Array.from(printContent.querySelectorAll('img'));
-    await Promise.all(images.map(img => new Promise(resolve => {
-      if (img.complete) {
-        resolve(true);
-      } else {
-        img.onload = () => resolve(true);
-        img.onerror = () => resolve(false);
-      }
-    })));
+    await Promise.all(
+      images.map(
+        (img) =>
+          new Promise((resolve) => {
+            if (img.complete) {
+              resolve(true);
+            } else {
+              img.onload = () => resolve(true);
+              img.onerror = () => resolve(false);
+              // Set crossOrigin to ensure images load properly
+              img.crossOrigin = 'Anonymous';
+            }
+          })
+      )
+    );
     
-    // Create a clone of the content to manipulate
-    const clone = printContent.cloneNode(true) as HTMLElement;
+    // Make sure all fonts are loaded
+    await document.fonts.ready;
     
-    // Force all image widths to be appropriate
-    Array.from(clone.querySelectorAll('img')).forEach(img => {
-      img.style.maxWidth = '100%';
-      img.style.height = 'auto';
-    });
-    
-    // Get HTML string from the element
-    const htmlContent = clone.outerHTML;
-    
-    // Use html2canvas to render the content
-    // We'll use a higher DPI to get better quality
+    // Use html2canvas with higher scale for better quality
     const canvas = await html2canvas(printContent, {
-      scale: 2, // Higher scale for better image quality
-      useCORS: true,
+      scale: 3, // Higher scale for crisp text and images
+      useCORS: true, // Enable CORS for images
       allowTaint: true,
       logging: false,
       backgroundColor: '#FFFFFF',
-      onclone: (document) => {
-        // Make any final adjustments to the cloned document
-        const content = document.getElementById('quotation-print-container');
-        if (content) {
-          content.style.width = contentWidth + 'mm';
-          // Ensure all images are loaded by setting crossOrigin attribute
-          content.querySelectorAll('img').forEach(img => {
-            img.setAttribute('crossorigin', 'anonymous');
+      imageTimeout: 15000, // Longer timeout for image loading
+      onclone: (clonedDoc) => {
+        // Process cloned document before rendering
+        const clonedContent = clonedDoc.getElementById('quotation-print-container');
+        if (clonedContent) {
+          // Make sure all images have crossOrigin set
+          clonedContent.querySelectorAll('img').forEach((img) => {
+            img.crossOrigin = 'Anonymous';
+            // Ensure images are fully loaded
+            if (!img.complete) {
+              img.src = img.src;
+            }
           });
         }
-        return document;
+        return clonedDoc;
       }
     });
     
-    // Get image data at 80% quality (balances size and quality)
-    const imgData = canvas.toDataURL('image/jpeg', 0.8);
+    // Calculate scaling to fit on A4 while maintaining aspect ratio
+    const contentWidth = pageWidth - 2 * margin;
+    const contentHeight = (canvas.height * contentWidth) / canvas.width;
     
-    // Calculate scaling to fit on A4
-    const imgWidth = contentWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    // Create multiple pages if content height exceeds page height
+    let remainingHeight = contentHeight;
+    let position = 0;
+    let pageNumber = 1;
     
-    // Add image to PDF, centered with margins
-    pdf.addImage(imgData, 'JPEG', margin, margin, imgWidth, imgHeight);
+    // Add first page
+    pdf.setPage(pageNumber);
     
-    // Check if content height exceeds page height and add more pages if needed
-    let heightLeft = imgHeight;
-    let position = margin;
-    
-    while (heightLeft > (pageHeight - margin * 2)) {
-      // Add a new page
-      pdf.addPage();
-      position = margin;
-      // Add image again on the new page with adjusted position
-      pdf.addImage(
-        imgData, 
-        'JPEG', 
-        margin, 
-        -(imgHeight - heightLeft + margin), 
-        imgWidth, 
-        imgHeight
+    while (remainingHeight > 0) {
+      // Calculate how much content to render on current page
+      const heightOnThisPage = Math.min(
+        remainingHeight,
+        pageHeight - 2 * margin
       );
-      heightLeft -= (pageHeight - margin * 2);
+      
+      // Calculate vertical crop position in the canvas
+      const verticalPos = (position / contentHeight) * canvas.height;
+      const heightInPixels = (heightOnThisPage / contentHeight) * canvas.height;
+      
+      // Create a temporary canvas for the current page section
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = heightInPixels;
+      
+      // Draw portion of the main canvas to this temporary canvas
+      const ctx = tempCanvas.getContext('2d');
+      if (!ctx) throw new Error("Failed to get canvas context");
+      
+      ctx.drawImage(
+        canvas, 
+        0, 
+        verticalPos, 
+        canvas.width, 
+        heightInPixels, 
+        0, 
+        0, 
+        tempCanvas.width, 
+        tempCanvas.height
+      );
+      
+      // Add the image to PDF with high quality
+      const imgData = tempCanvas.toDataURL('image/jpeg', 1.0);
+      pdf.addImage(
+        imgData,
+        'JPEG',
+        margin,
+        margin,
+        contentWidth,
+        heightOnThisPage,
+        `page-${pageNumber}`,
+        'FAST'
+      );
+      
+      // Update remaining height and position
+      remainingHeight -= heightOnThisPage;
+      position += heightOnThisPage;
+      
+      // Add a new page if there's more content
+      if (remainingHeight > 0) {
+        pdf.addPage();
+        pageNumber++;
+      }
     }
     
-    // Include metadata (improves PDF accessibility)
+    // Enable text layer for text selection in PDF
     pdf.setProperties({
-      title: 'Quotation',
+      title: 'Magnific - Quotation',
       subject: 'Quotation from Magnific Home Appliances',
       author: 'Magnific Home Appliances',
-      creator: 'Magnific Quotation System'
+      keywords: 'quotation, invoice, magnific',
+      creator: 'Magnific Quotation System',
     });
     
-    // Save the PDF file
-    pdf.save('Quotation.pdf');
+    // Save the PDF with a meaningful name
+    pdf.save('Magnific_Quotation.pdf');
     
     return true;
   } catch (error) {
